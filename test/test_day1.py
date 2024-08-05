@@ -26,22 +26,18 @@ class TestThermoFunctions(unittest.TestCase):
                 if t_k  in two_phase_ts:
                     self.assertEqual(result_l.phase, PhaseEnum.LIQ)
                     self.assertEqual(result_v.phase, PhaseEnum.VAP)
-                    self.assertEqual(result_l.phase, PhaseEnum.LIQ)
+                    self.assertEqual(result_stable.phase, PhaseEnum.LIQ)
                     self.assertTrue(np.allclose(result_l.phi, result_stable.phi))
                     self.assertFalse(np.allclose(result_l.phi, result_v.phi))
                 elif t_k < 160.0:   # liquid
                     self.assertEqual(result_l.phase, PhaseEnum.LIQ)
                     self.assertEqual(result_v.phase, PhaseEnum.LIQ)
-                    self.assertEqual(result_l.phase, PhaseEnum.LIQ)
+                    self.assertEqual(result_stable.phase, PhaseEnum.LIQ)
                     self.assertTrue(np.allclose(result_l.phi, result_v.phi))
                     self.assertTrue(np.allclose(result_l.phi, result_stable.phi))
                 elif t_k > 170.0:   # vapor
                     self.assertEqual(result_l.phase, PhaseEnum.VAP)
                     self.assertEqual(result_v.phase, PhaseEnum.VAP)
-                    self.assertEqual(result_l.phase, PhaseEnum.VAP)
+                    self.assertEqual(result_stable.phase, PhaseEnum.VAP)
                     self.assertTrue(np.allclose(result_l.phi, result_v.phi))
                     self.assertTrue(np.allclose(result_l.phi, result_stable.phi))
-
-
-
-
