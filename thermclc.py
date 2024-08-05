@@ -26,6 +26,12 @@ BC = np.zeros(MAXC)
 CKMAT =  np.zeros((MAXC,MAXC))   
 AIJ2 =  np.zeros((MAXC,MAXC))   
 
+NAME = [" C1 ", " C2 ", " C3 ", " IC4", " C4 ",
+        " IC5", " C5 ", " C6 ", " C7 ", " C8 ",
+        " C9 ", " H2O", " N2 ", " CO2", " H2S"]
+NAME = [n.rstrip(' ') for n in NAME]
+NAME = [n.lstrip(' ') for n in NAME]
+
 #@jit
 def GETCRIT(i):
 # GETCRIT RETURNS CRITICAL PROPERTIES AND COMPONENT INDICATORS
@@ -101,10 +107,7 @@ def INDATA(NCA,ICEQ,LIST):
     P = np.zeros(15)
     OMEGA = np.zeros(15)
     CKV = np.zeros((15,15))
-# IDENTIFY HYDROCARBONS
-    NAME = [" C1 "," C2 "," C3 "," IC4"," C4 ", \
-            " IC5"," C5 "," C6 "," C7 "," C8 ", \
-            " C9 "," H2O"," N2 "," CO2"," H2S"]    
+
 # CRITICAL TEMPERATURES (K) AND PRESSURES (ATM) (REID ET AL.)
     T = np.array([190.6, 305.4, 369.8, 408.1, 425.2, \
                   460.4, 469.6, 507.4, 540.2, 568.8, \
@@ -513,7 +516,6 @@ def CUBGEN(ICON, MT, T, P, X) :
     return(FUG, FUGT, FUGP, FUGX, AUX, FTYPE)
 
 
-
 #@jit
 def INIT(NCA,NOMA,LIST): # similar to INDATA but for 3 other models
 #
@@ -533,9 +535,7 @@ def INIT(NCA,NOMA,LIST): # similar to INDATA but for 3 other models
     OMEGA = np.zeros(15)
     CKV = np.zeros((15,15))
 # IDENTIFY HYDROCARBONS
-    NAME = [" C1 "," C2 "," C3 "," IC4"," C4 ", \
-            " IC5"," C5 "," C6 "," C7 "," C8 ", \
-            " C9 "," H2O"," N2 "," CO2"," H2S"]    
+
 # CRITICAL TEMPERATURES (K) AND PRESSURES (ATM) (REID ET AL.)
     T = np.array([190.6, 305.4, 369.8, 408.1, 425.2, \
                   460.4, 469.6, 507.4, 540.2, 568.8, \
