@@ -17,6 +17,12 @@ example_7_component = {
 }
 
 
+def compute_wilson_k(t_k, tc_k, p_mpa, pc_mpa, omega):
+    pr = pc_mpa / p_mpa
+    tr = tc_k / t_k
+    return pr * np.exp(5.373 * (1.0 + omega) * (1.0 - tr))
+
+
 class PhaseEnum(IntEnum):
     LIQ = 1
     VAP = -1
@@ -29,6 +35,7 @@ class PhaseEnum(IntEnum):
             -1: PhaseEnum.VAP
         }
         return ret[v]
+
 
 @dataclasses.dataclass
 class ThermoResults:
@@ -66,10 +73,15 @@ class ThermclcInterface:
         (FUG, FUGT, FUGP, FUGX, AUX, FTYPE) = th.THERMO(t_k, p_mpa, inflows, desired_phase, option)
         return ThermoResults(FUG, FUGT, FUGP, FUGX, AUX, PhaseEnum.from_value(FTYPE))
 
+    def get_critical_properties(self, i: int):
+        return th.GETCRIT(i)
+
+    def compute_wilson_k(self, t, p, i):
+        tc, pc, omega = self.get_critical_properties(i)
+        return compute_wilson_k(t, tc, p, pc, omega)
+
 
 @contextlib.contextmanager
 def init_system(inflows, eos):
     stream = ThermclcInterface(inflows, eos)
     yield stream
-
-
