@@ -60,8 +60,7 @@ class RachfordRiceGSolver:
         self._zs = zs
 
     def solve(self, result: RachfordRiceResult):
-        beta_min = 0.0
-        beta_max = 1.0
+        beta_min, beta_max = self._get_beta_min_max()
 
         beta_new = 0.5
         for i in range(self._max_iter):
@@ -87,6 +86,9 @@ class RachfordRiceGSolver:
 
         self._fill_result(beta_new, result)
 
+    def _get_beta_min_max(self):
+        return 0.0, 1.0
+
     def fun(self, beta):
         ret = 0.0
         for zi, ki in zip(self._zs, self._ks):
@@ -104,11 +106,40 @@ class RachfordRiceGSolver:
         return abs(g) < 1e-6 and abs(newton_step) < 1e-6
 
     def _fill_result(self, beta, result):
+        # store beta to result before capping for negative flash
         result.beta = beta
+
+        if beta > 1.0:
+            beta = 1.0
+        elif beta < 0.0:
+            beta = 0.0
+
+        self._calculate_xs_ys_from_beta(beta, result)
+
+    def _calculate_xs_ys_from_beta(self, beta, result):
         for i, (ki, zi) in enumerate(zip(self._ks, self._zs)):
             denom = 1.0 - beta + beta * ki
             result.xs[i] = zi / denom
             result.ys[i] = ki * zi / denom
+
+    def is_there_real_beta(self):
+        raise RachfordRiceException('Base g function solver does not implement real beta check')
+
+
+class RachfordRiceGSolverNegativeFlash(RachfordRiceGSolver):
+    @property
+    def k_min(self):
+        return np.min(self._ks)
+
+    @property
+    def k_max(self):
+        return np.max(self._ks)
+
+    def is_there_real_beta(self):
+        return self.k_min < 1.0 < self.k_max
+
+    def _get_beta_min_max(self):
+        return -1.0/(self.k_max - 1.0), 1.0/(1.0 - self.k_min)
 
 
 class RachfordRiceGSolverSloppy(RachfordRiceGSolver):
@@ -174,6 +205,10 @@ class RachfordRiceBase:
             return RachfordRiceBase(size, RachfordRiceGSolver())
         elif option == RachfordRiceSolverOption.SLOPPY:
             return RachfordRiceBase(size, RachfordRiceGSolverSloppy(max_iter=1, max_iter_fun=max_iter_dummy))
+        elif option == RachfordRiceSolverOption.NEGATIVE_FLASH:
+            return RachfordRiceNegativeFlash(size, RachfordRiceGSolverNegativeFlash())
 
 
-
+class RachfordRiceNegativeFlash(RachfordRiceBase):
+    def _require_solving_beta(self, zs):
+        return self._g_solver.is_there_real_beta()

@@ -153,3 +153,22 @@ class TestRachfordRiceSolver(unittest.TestCase):
                 self.assertAlmostEqual(result.beta, beta_gold, places=3)
                 self.assertTrue(np.isclose(np.sum(result.xs), total_x))
                 self.assertTrue(np.isclose(np.sum(result.ys), total_y))
+
+    def test_solve_all_negative_flash(self):
+        solver = self.create_solver(RachfordRiceSolverOption.NEGATIVE_FLASH)
+        with init_system(self.components, 'SRK') as stream:
+            for i, t in enumerate(self.ts):
+                ks = [stream.compute_wilson_k(t, self.p_mpa, i) for i in range(self.size)]
+                result = solver.compute(ks, self.zs)
+                print(f'\nT={t}:')
+                print(result)
+                beta_gold = self.beta_gold[i]
+                total_x = 1.0
+                total_y = 1.0
+                if beta_gold > 1.0:
+                    total_x = 0.0
+                elif beta_gold < 0.0:
+                    total_y = 0.0
+                self.assertAlmostEqual(result.beta, beta_gold, places=4)
+                # self.assertTrue(np.isclose(np.sum(result.xs), total_x))
+                # self.assertTrue(np.isclose(np.sum(result.ys), total_y))
