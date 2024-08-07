@@ -46,6 +46,12 @@ class ThermoResults:
     aux: np.ndarray
     phase: PhaseEnum
 
+@dataclasses.dataclass
+class FlashInput:
+    T: float
+    P: float
+    zs: np.array
+
 
 class ThermclcInterface:
     EoS = {
@@ -69,8 +75,8 @@ class ThermclcInterface:
     def _indata(self):
         th.INDATA(self.inflow_size, self._eos, self.inflow_id)
 
-    def calc_properties(self, t_k: float, p_mpa: float, inflows: np.ndarray, desired_phase: PhaseEnum, option=5):
-        (FUG, FUGT, FUGP, FUGX, AUX, FTYPE) = th.THERMO(t_k, p_mpa, inflows, desired_phase, option)
+    def calc_properties(self, flash_input: FlashInput, desired_phase: PhaseEnum, option=5):
+        (FUG, FUGT, FUGP, FUGX, AUX, FTYPE) = th.THERMO(flash_input.T, flash_input.P, flash_input.zs, desired_phase, option)
         return ThermoResults(FUG, FUGT, FUGP, FUGX, AUX, PhaseEnum.from_value(FTYPE))
 
     def get_critical_properties(self, i: int):
@@ -79,6 +85,9 @@ class ThermclcInterface:
     def compute_wilson_k(self, t, p, i):
         tc, pc, omega = self.get_critical_properties(i)
         return compute_wilson_k(t, tc, p, pc, omega)
+
+    def all_wilson_ks(self, t, p):
+        return [self.compute_wilson_k(t, p, i) for i in range(self.inflow_size)]
 
 
 @contextlib.contextmanager

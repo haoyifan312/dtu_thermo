@@ -105,6 +105,23 @@ class RRGSolverBase:
             ret -= zi * (ki - 1.0) ** 2 / (1.0 - beta + beta * ki) ** 2
         return ret
 
+    @property
+    def g0(self):
+        return self.fun(0.0)
+
+    @property
+    def g1(self):
+        return self.fun(1.0)
+
+    def is_all_liquid(self):
+        return self.g0 < 0.0 and self.g1 < 0.0
+
+    def is_all_vapor(self):
+        return self.g0 > 0.0 and self.g1 > 0.0
+
+    def is_vle(self):
+        return self.g0 > 0.0 > self.g1
+
     @staticmethod
     def _solver_reached_solution(g, newton_step):
         return abs(g) < 1e-6 and abs(newton_step) < 1e-6
@@ -182,17 +199,15 @@ class RachfordRiceBase:
         self._result.clear()
         self._check_input_sizes(ks, zs)
         self._g_solver.set_input(ks, zs)
-        if self._require_solving_beta(zs):
+        if self.require_solving_beta(zs):
             self._g_solver.solve(self._result, initial_guess=initial_guess)
         return self._result
 
-    def _require_solving_beta(self, zs):
-        g0 = self._g_solver.fun(0.0)
-        g1 = self._g_solver.fun(1.0)
-        if g0 > 0.0 and g1 > 0.0:
+    def require_solving_beta(self, zs):
+        if self._g_solver.is_all_vapor():
             self._result.set_as_vapor(zs)
             return False
-        elif g0 < 0.0 and g1 < 0.0:
+        elif self._g_solver.is_all_liquid():
             self._result.set_as_liquid(zs)
             return False
         else:
@@ -216,5 +231,5 @@ class RachfordRiceNegativeFlash(RachfordRiceBase):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs, g_solver=RRGSolverNegativeFlash())
 
-    def _require_solving_beta(self, zs):
+    def require_solving_beta(self, zs):
         return self._g_solver.is_there_real_beta()

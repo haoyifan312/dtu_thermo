@@ -20,9 +20,10 @@ class TestThermoFunctions(unittest.TestCase):
         two_phase_ts = (160.0, 170.0)
         with init_system(example_7_component.keys(), 'SRK') as stream:
             for t_k in temperatures:
-                result_l = stream.calc_properties(t_k, p_mpa, inflow_moles, PhaseEnum.LIQ)
-                result_v = stream.calc_properties(t_k, p_mpa, inflow_moles, PhaseEnum.VAP)
-                result_stable = stream.calc_properties(t_k, p_mpa, inflow_moles, PhaseEnum.STABLE)
+                flash_input = FlashInput(t_k, p_mpa, inflow_moles)
+                result_l = stream.calc_properties(flash_input, PhaseEnum.LIQ)
+                result_v = stream.calc_properties(flash_input, PhaseEnum.VAP)
+                result_stable = stream.calc_properties(flash_input, PhaseEnum.STABLE)
                 if t_k  in two_phase_ts:
                     self.assertEqual(result_l.phase, PhaseEnum.LIQ)
                     self.assertEqual(result_v.phase, PhaseEnum.VAP)

@@ -58,7 +58,7 @@ class TestRachfordRiceSolver(unittest.TestCase):
         t = self.ts[0]
         solver = self.create_solver()
         with init_system(self.components, 'SRK') as stream:
-            ks = [stream.compute_wilson_k(t, self.p_mpa, i) for i in range(self.size)]
+            ks = stream.all_wilson_ks(t, self.p_mpa)
             result = solver.compute(ks, self.zs)
             print(result)
             self.assertEqual(result.beta, 0.0)
@@ -69,7 +69,7 @@ class TestRachfordRiceSolver(unittest.TestCase):
         t = self.ts[-1]
         solver = self.create_solver()
         with init_system(self.components, 'SRK') as stream:
-            ks = [stream.compute_wilson_k(t, self.p_mpa, i) for i in range(self.size)]
+            ks = stream.all_wilson_ks(t, self.p_mpa)
             result = solver.compute(ks, self.zs)
             print(result)
             self.assertEqual(result.beta, 1.0)
@@ -81,7 +81,7 @@ class TestRachfordRiceSolver(unittest.TestCase):
         t = self.ts[i]
         solver = self.create_solver()
         with init_system(self.components, 'SRK') as stream:
-            ks = [stream.compute_wilson_k(t, self.p_mpa, i) for i in range(self.size)]
+            ks = stream.all_wilson_ks(t, self.p_mpa)
             result = solver.compute(ks, self.zs)
             print(result)
             self.assertAlmostEqual(result.beta, self.beta_gold[i], places=4)
@@ -92,7 +92,7 @@ class TestRachfordRiceSolver(unittest.TestCase):
         solver = self.create_solver()
         with init_system(self.components, 'SRK') as stream:
             for i, t in enumerate(self.ts):
-                ks = [stream.compute_wilson_k(t, self.p_mpa, i) for i in range(self.size)]
+                ks = stream.all_wilson_ks(t, self.p_mpa)
                 result = solver.compute(ks, self.zs)
                 print(f'\nT={t}:')
                 print(result)
@@ -117,7 +117,7 @@ class TestRachfordRiceSolver(unittest.TestCase):
         with init_system(self.components, 'SRK') as stream:
             for i in (1, 2, 3, 4):
                 t = self.ts[i]
-                ks = [stream.compute_wilson_k(t, self.p_mpa, i) for i in range(self.size)]
+                ks = stream.all_wilson_ks(t, self.p_mpa)
                 result = solver.compute(ks, self.zs)
                 betas = result.betas.copy()
                 log_steps = []
@@ -140,7 +140,7 @@ class TestRachfordRiceSolver(unittest.TestCase):
             last_beta = 0.5
             for i in (1, 2, 3, 4):
                 t = self.ts[i]
-                ks = [stream.compute_wilson_k(t, self.p_mpa, i) for i in range(self.size)]
+                ks = stream.all_wilson_ks(t, self.p_mpa)
                 result = solver.compute(ks, self.zs, initial_guess=last_beta)
                 last_beta = result.beta
                 betas = result.betas.copy()
@@ -154,7 +154,7 @@ class TestRachfordRiceSolver(unittest.TestCase):
         beta_golds = np.array([0.0, 0.3505, 0.9749, 0.75, 0.75, 1.0, 1.0])
         with init_system(self.components, 'SRK') as stream:
             for i, t in enumerate(self.ts):
-                ks = [stream.compute_wilson_k(t, self.p_mpa, i) for i in range(self.size)]
+                ks = stream.all_wilson_ks(t, self.p_mpa)
                 result = solver.compute(ks, self.zs)
                 print(f'\nT={t}:')
                 print(result)
@@ -175,7 +175,7 @@ class TestRachfordRiceSolver(unittest.TestCase):
         solver = self.create_solver(RachfordRiceSolverOption.NEGATIVE_FLASH)
         with init_system(self.components, 'SRK') as stream:
             for i, t in enumerate(self.ts):
-                ks = [stream.compute_wilson_k(t, self.p_mpa, i) for i in range(self.size)]
+                ks = stream.all_wilson_ks(t, self.p_mpa)
                 result = solver.compute(ks, self.zs)
                 print(f'\nT={t}:')
                 print(result)
