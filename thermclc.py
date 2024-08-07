@@ -151,6 +151,7 @@ def INDATA(NCA,ICEQ,LIST):
     for i in range(0,N):
         l=LIST[i]-1 # note the weird index in Python
         NEW[i]=NAME[l]
+
 # CRITICAL TEMPERATURE AND PRESSURE
         TCR[i]=T[l]
         TSQR[i]=1.0/math.sqrt(TCR[i])

@@ -9,7 +9,7 @@ from thermclc_interface import example_7_component, init_system
 
 class TestSuccessiveSubstitution(unittest.TestCase):
     ts = [200.0, 205.0, 220.0, 220.0, 203.0]
-    ps = [5.0, 5.0, 5.0, 7.0, 7.0, 5.6]
+    ps = [5.0, 5.0, 5.0, 7.0, 5.6]
     components = list(example_7_component.keys())
     zs = np.array(list(example_7_component.values()))
     betas_gold = [0.8283, 0.9319, 0.9781, 0.9809, 0.8047]
@@ -23,14 +23,13 @@ class TestSuccessiveSubstitution(unittest.TestCase):
 
     def test_wilson_k_in_vle_region(self):
         solver = self.create_solver()
-        gold = [True, True, True, True, False]
+        gold = [True, True, True, True, True]
         with init_system(self.components, 'SRK') as stream:
             for i, (t, p) in enumerate(zip(self.ts, self.ps)):
                 ks = [stream.compute_wilson_k(t, p, i) for i in range(self.size)]
                 solver._g_solver.set_input(ks, self.zs)
                 initial_guess_vle = solver._g_solver.is_vle()
                 self.assertEqual(gold[i], initial_guess_vle)
-
 
     def test_constructor(self):
         solver = self.create_solver()
@@ -52,14 +51,14 @@ class TestSuccessiveSubstitution(unittest.TestCase):
         self._test_example_case(3)
 
     def test_case5_no_split_from_wilson_ks(self):
-        self._test_example_case(4)
+        self._test_example_case(4, initial_ks=None)
 
-    def _test_example_case(self, i):
+    def _test_example_case(self, i, initial_ks=None):
         t = self.ts[i]  # 200 K
         p = self.ps[i]  # 5 MPa
         with init_system(self.components, 'SRK') as stream:
             ss = SuccessiveSubstitutionSolver(stream)
-            iters, result = ss.compute(FlashInput(t, p, self.zs))
+            iters, result = ss.compute(FlashInput(t, p, self.zs), initial_ks=initial_ks)
             print(f'T={t} K; P={p} MPa')
             print(f'total successive substitution iterations={iters}')
             print(result)

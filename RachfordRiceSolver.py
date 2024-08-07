@@ -3,6 +3,8 @@ from enum import IntEnum
 from typing import List
 import numpy as np
 
+from thermclc_interface import PhaseEnum
+
 
 class RachfordRiceException(Exception):
     pass
@@ -14,6 +16,15 @@ class RachfordRiceResult:
     xs: np.array = None
     ys: np.array = None
     betas: List = dataclasses.field(default_factory=list)
+
+    @property
+    def phase(self):
+        if 0.0 < self.beta < 1.0:
+            return PhaseEnum.VLE
+        elif self.beta <= 0.0:
+            return PhaseEnum.LIQ
+        else:
+            return PhaseEnum.VAP
 
     def clear(self):
         if self.xs is None:
@@ -40,6 +51,19 @@ class RachfordRiceResult:
             self.xs[:] = 0.0
         self.ys = zs.copy()
 
+    def normalize_xs(self):
+        self.xs = self.xs/np.sum(self.xs)
+
+    def normalize_ys(self):
+        self.ys = self.ys/np.sum(self.ys)
+
+    @property
+    def xs_or_zs(self):
+        return self.xs if np.sum(self.xs) > 0.0 else self.ys
+
+    @property
+    def ys_or_zs(self):
+        return self.ys if np.sum(self.ys) > 0.0 else self.xs
 
 def raise_max_iter_exception(max_iter: int):
     raise RachfordRiceException(f'Rachford-Rice solver did not converge in {max_iter} iterations')

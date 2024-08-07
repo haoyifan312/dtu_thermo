@@ -23,16 +23,33 @@ def compute_wilson_k(t_k, tc_k, p_mpa, pc_mpa, omega):
     return pr * np.exp(5.373 * (1.0 + omega) * (1.0 - tr))
 
 
+def estimate_light_phase_from_wilson_ks(zs, ks):
+    return zs * ks
+
+
+def estimate_light_phase_from_wilson_ks_aggressive(zs, ln_phi):
+    return zs * np.exp(ln_phi)
+
+
+def estimate_heavy_phase_from_wilson_ks(zs, ks):
+    return zs / ks
+
+
+def estimate_heavy_phase_from_wilson_ks_aggressive(zs, ks, ln_phi):
+    return zs / ks * np.exp(ln_phi)
+
+
 class PhaseEnum(IntEnum):
     LIQ = 1
     VAP = -1
+    VLE = 2
     STABLE = 0
 
     @staticmethod
     def from_value(v: int):
         ret = {
             1: PhaseEnum.LIQ,
-            -1: PhaseEnum.VAP
+            -1: PhaseEnum.VAP,
         }
         return ret[v]
 
@@ -45,6 +62,7 @@ class ThermoResults:
     dphi_dx: np.ndarray
     aux: np.ndarray
     phase: PhaseEnum
+
 
 @dataclasses.dataclass
 class FlashInput:
@@ -76,7 +94,8 @@ class ThermclcInterface:
         th.INDATA(self.inflow_size, self._eos, self.inflow_id)
 
     def calc_properties(self, flash_input: FlashInput, desired_phase: PhaseEnum, option=5):
-        (FUG, FUGT, FUGP, FUGX, AUX, FTYPE) = th.THERMO(flash_input.T, flash_input.P, flash_input.zs, desired_phase, option)
+        (FUG, FUGT, FUGP, FUGX, AUX, FTYPE) = th.THERMO(flash_input.T, flash_input.P, flash_input.zs, desired_phase,
+                                                        option)
         return ThermoResults(FUG, FUGT, FUGP, FUGX, AUX, PhaseEnum.from_value(FTYPE))
 
     def get_critical_properties(self, i: int):
