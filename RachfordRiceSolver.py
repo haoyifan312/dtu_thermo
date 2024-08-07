@@ -48,7 +48,8 @@ def raise_max_iter_exception(max_iter: int):
 def max_iter_dummy(max_iter):
     pass
 
-class RachfordRiceGSolver:
+
+class RRGSolverBase:
     def __init__(self, max_iter=100, max_iter_fun=raise_max_iter_exception):
         self._ks = None
         self._zs = None
@@ -126,7 +127,7 @@ class RachfordRiceGSolver:
         raise RachfordRiceException('Base g function solver does not implement real beta check')
 
 
-class RachfordRiceGSolverNegativeFlash(RachfordRiceGSolver):
+class RRGSolverNegativeFlash(RRGSolverBase):
     @property
     def k_min(self):
         return np.min(self._ks)
@@ -139,19 +140,18 @@ class RachfordRiceGSolverNegativeFlash(RachfordRiceGSolver):
         return self.k_min < 1.0 < self.k_max
 
     def _get_beta_min_max(self):
-        return -1.0/(self.k_max - 1.0), 1.0/(1.0 - self.k_min)
+        return -1.0 / (self.k_max - 1.0), 1.0 / (1.0 - self.k_min)
 
 
-class RachfordRiceGSolverSloppy(RachfordRiceGSolver):
+class RRGSolverSloppy(RRGSolverBase):
     def _fill_result(self, beta, result):
         super()._fill_result(beta, result)  # x, y are li, vi
-        result.xs = result.xs*(1 - beta)
-        result.ys = result.ys*beta
+        result.xs = result.xs * (1 - beta)
+        result.ys = result.ys * beta
 
         sumv = sum(result.ys)
-        result.xs = result.xs/(1.0-sumv)
-        result.ys = result.ys/sumv
-
+        result.xs = result.xs / (1.0 - sumv)
+        result.ys = result.ys / sumv
 
 
 class RachfordRiceSolverOption(IntEnum):
@@ -161,7 +161,7 @@ class RachfordRiceSolverOption(IntEnum):
 
 
 class RachfordRiceBase:
-    def __init__(self, size, g_solver: RachfordRiceGSolver):
+    def __init__(self, size, g_solver=RRGSolverBase()):
         self._size = size
         self._result = RachfordRiceResult()
         self._initialize_result()
@@ -202,13 +202,16 @@ class RachfordRiceBase:
     @staticmethod
     def create_solver(size: int, option: RachfordRiceSolverOption):
         if option == RachfordRiceSolverOption.BASE:
-            return RachfordRiceBase(size, RachfordRiceGSolver())
+            return RachfordRiceBase(size)
         elif option == RachfordRiceSolverOption.SLOPPY:
-            return RachfordRiceBase(size, RachfordRiceGSolverSloppy(max_iter=1, max_iter_fun=max_iter_dummy))
+            return RachfordRiceBase(size, RRGSolverSloppy(max_iter=1, max_iter_fun=max_iter_dummy))
         elif option == RachfordRiceSolverOption.NEGATIVE_FLASH:
-            return RachfordRiceNegativeFlash(size, RachfordRiceGSolverNegativeFlash())
+            return RachfordRiceNegativeFlash(size)
 
 
 class RachfordRiceNegativeFlash(RachfordRiceBase):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs, g_solver=RRGSolverNegativeFlash())
+
     def _require_solving_beta(self, zs):
         return self._g_solver.is_there_real_beta()
