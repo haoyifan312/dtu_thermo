@@ -122,6 +122,10 @@ class TestRachfordRiceSolver(unittest.TestCase):
                 betas = result.betas.copy()
                 log_steps = []
                 log_step_diffs = []
+                betas = [float(num) for num in betas]
+                print(len(betas))
+                print(betas)
+                print([betas[i]-betas[i-1] for i in range(1, len(betas))])
                 for i in range(1, len(betas)):
                     this_beta = betas[i]
                     last_beta = betas[i - 1]
@@ -129,8 +133,21 @@ class TestRachfordRiceSolver(unittest.TestCase):
                     if len(log_steps) > 1:
                         log_step_diffs.append(log_steps[i - 1] - 2 * log_steps[i - 2])
 
-                print(log_steps)
-                print(log_step_diffs)
+                # print(log_steps)
+                # print(log_step_diffs)
+
+        with init_system(self.components, 'SRK') as stream:
+            last_beta = 0.5
+            for i in (1, 2, 3, 4):
+                t = self.ts[i]
+                ks = [stream.compute_wilson_k(t, self.p_mpa, i) for i in range(self.size)]
+                result = solver.compute(ks, self.zs, initial_guess=last_beta)
+                last_beta = result.beta
+                betas = result.betas.copy()
+                betas = [float(num) for num in betas]
+                print(len(betas))
+                print(betas)
+                print([betas[i]-betas[i-1] for i in range(1, len(betas))])
 
     def test_solve_all_sloppy(self):
         solver = self.create_solver(RachfordRiceSolverOption.SLOPPY)

@@ -60,10 +60,13 @@ class RRGSolverBase:
         self._ks = ks
         self._zs = zs
 
-    def solve(self, result: RachfordRiceResult):
+    def solve(self, result: RachfordRiceResult, initial_guess=None):
         beta_min, beta_max = self._get_beta_min_max()
 
-        beta_new = 0.5
+        beta_new = initial_guess
+        if beta_new is None:
+            beta_new = 0.5
+
         for i in range(self._max_iter):
             g = self.fun(beta_new)
             result.betas.append(beta_new)
@@ -175,12 +178,12 @@ class RachfordRiceBase:
         self._result.xs = np.zeros(self.size)
         self._result.ys = np.zeros(self.size)
 
-    def compute(self, ks, zs):
+    def compute(self, ks, zs, initial_guess=None):
         self._result.clear()
         self._check_input_sizes(ks, zs)
         self._g_solver.set_input(ks, zs)
         if self._require_solving_beta(zs):
-            self._g_solver.solve(self._result)
+            self._g_solver.solve(self._result, initial_guess=initial_guess)
         return self._result
 
     def _require_solving_beta(self, zs):
