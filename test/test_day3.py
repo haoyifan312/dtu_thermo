@@ -3,7 +3,7 @@ import unittest
 import numpy as np
 
 from RachfordRiceSolver import RachfordRiceSolverOption, RachfordRiceBase
-from SuccessiveSubstitutionSolver import SuccessiveSubstitutionSolver, FlashInput, SuccessiveSubstitutionException
+from SuccessiveSubstitutionSolver import *
 from thermclc_interface import example_7_component, init_system
 
 
@@ -57,7 +57,9 @@ class TestSuccessiveSubstitution(unittest.TestCase):
         t = 205.0
         p = 6.0
         for i in range(10):
+        # for i in (2,):
             p_new = p + i*0.02
+            # p_new = 6.16
             self._test_case_for_t_p(t, p_new)
 
 
@@ -70,7 +72,7 @@ class TestSuccessiveSubstitution(unittest.TestCase):
         show_plot = False
         with init_system(self.components, 'SRK') as stream:
             ss = SuccessiveSubstitutionSolver(stream)
-            ss_a = SuccessiveSubstitutionSolver(stream, acceleration_cycle=5)
+            ss_a = SuccessiveSubstitutionSolver(stream, acceleration=SSAccelerationCycle(5))
             flash_input = FlashInput(t, p, self.zs)
             try:
                 iters, result = ss.compute(flash_input, show_plot=show_plot)
@@ -92,5 +94,6 @@ class TestSuccessiveSubstitution(unittest.TestCase):
             print('\n\t\toriginal\taccelerated\t')
             print(f'beta\t{result.beta :.4f}\t{result_a.beta :.4f}')
             print(f'iters\t{iters}\t{iters_ac}')
+            print(f'acc_count\t{ss._acceleration.counter}\t{ss_a._acceleration.counter}')
             print('\n\n\n')
 

@@ -12,15 +12,65 @@ class SuccessiveSubstitutionException(Exception):
         super().__init__(*args, **kwargs)
 
 
+class SSAccelerationDummy:
+    def check(self, current_iter, ss_var_history, new_var):
+        return new_var
+
+    @property
+    def did(self):
+        """dummy accelerator never accelerate"""
+        return False
+
+    @property
+    def counter(self):
+        return 0
+
+class SSAccelerationCycle:
+    def __init__(self, cycle=5):
+        self._cycle = cycle
+        self._did = False
+        self._counter = 0
+
+    def check(self, current_iter, ss_var_history, new_var):
+        self._did = False
+        if current_iter == 0 or current_iter % self._cycle > 0:
+            return new_var
+        y_kp2 = new_var
+        y_kp1 = ss_var_history[-1]
+        y_k = ss_var_history[-2]
+        d_k = y_kp1 - y_k
+        d_kp1 = y_kp2 - y_kp1
+        lam_denom = np.sum(d_k * d_kp1)
+        if abs(lam_denom) < 1e-30:
+            return new_var
+        lam = np.sum(d_kp1) ** 2 / lam_denom
+        y_inf_denom = 1.0 - lam
+        if abs(y_inf_denom) < 1e-10:
+            return new_var
+        y_inf = y_kp2 + d_kp1 * lam /y_inf_denom
+
+        self._did = True
+        self._counter += 1
+        return y_inf
+
+    @property
+    def did(self):
+        return self._did
+
+    @property
+    def counter(self):
+        return self._counter
+
+
 class SuccessiveSubstitutionSolver:
-    def __init__(self, stream: ThermclcInterface, rr=None, acceleration_cycle=None):
+    def __init__(self, stream: ThermclcInterface, rr=None, acceleration=SSAccelerationDummy()):
         self._stream = stream
         if rr is None:
             rr = RachfordRiceBase(stream.inflow_size)
         self._rr = rr
         self._max_iter = 1000
         self._ss_tol = 1e-7
-        self._acceleration_cycle = acceleration_cycle
+        self._acceleration = acceleration
 
     def compute(self, flash_input: FlashInput, initial_ks=None, show_plot=False):
         if initial_ks is None:
@@ -40,6 +90,7 @@ class SuccessiveSubstitutionSolver:
         ks_history = []
         beta_history = []
         g_history = []
+        g_diff = -1
         for i in range(self._max_iter):
             beta_history.append(last_result.beta)
             props_v = self._stream.calc_properties(FlashInput(t, p, last_result.ys_or_zs), PhaseEnum.VAP)
@@ -49,12 +100,16 @@ class SuccessiveSubstitutionSolver:
                 g_diff = g_history[-1] - g_history[-2]
             last_ks = new_ks.copy()
             ks_history.append(last_ks)
-            new_ks = np.exp(props_l.phi) / np.exp(props_v.phi)
-            new_ks = self._accelerate_ks(i, ks_history, new_ks)
+
+            if g_diff < 0.0 or not self._acceleration.did:
+                new_ks = np.exp(props_l.phi) / np.exp(props_v.phi)
+                new_ks = self._acceleration.check(i, ks_history, new_ks)
+            else:
+                new_ks = ks_history[-2]
 
             k_diffs = np.abs(new_ks - last_ks)
             if np.max(k_diffs) < self._ss_tol:
-                beta_err_history = [abs(el-beta_history[-1]) for el in beta_history]
+                beta_err_history = [abs(el - beta_history[-1]) for el in beta_history]
                 # beta_err_history = [np.log(abs(el)) for el in beta_err_history]
                 print([e for e in beta_err_history])
                 if show_plot:
@@ -68,6 +123,13 @@ class SuccessiveSubstitutionSolver:
 
             last_result = self._solve_beta_from_rachford_rice(new_ks, flash_input.zs, last_result.beta)
         else:
+            # plt.plot(g_history)
+            # plt.show()
+            if show_plot:
+                beta_err_history = [abs(el - beta_history[-1]) for el in beta_history]
+                plt.plot(beta_err_history)
+                plt.yscale('log')
+                plt.show()
             raise SuccessiveSubstitutionException(f'Successive substitution solver failed to converge '
                                                   f'at max iterations of {self._max_iter}', result=last_result)
         return i, last_result
@@ -94,7 +156,7 @@ class SuccessiveSubstitutionSolver:
             ret.xs = flash_input.zs.copy()
         else:
             raise SuccessiveSubstitutionException(f'Initial VLE guess should not be for beta={beta}')
-        effective_ks = ret.ys/ret.xs
+        effective_ks = ret.ys / ret.xs
         return effective_ks, ret
 
     def _stablity_analysis_suggest_single_phase(self, flash_input, initial_result):
@@ -116,7 +178,7 @@ class SuccessiveSubstitutionSolver:
             new_flash_input.zs = new_ws.copy()
             new_w_props = self._stream.calc_properties(new_flash_input, PhaseEnum.STABLE)
             bracket_term = new_ln_ws + new_w_props.phi - di - 1.0
-            tm = 1.0 + np.sum(new_ws*bracket_term)
+            tm = 1.0 + np.sum(new_ws * bracket_term)
 
             # check tm < 0.0
 
@@ -131,21 +193,6 @@ class SuccessiveSubstitutionSolver:
             raise SuccessiveSubstitutionException(f'Successive substitution on tm reached '
                                                   f'max iterations {self._max_iter}')
 
-    def _accelerate_ks(self, i, ks_history, new_ks):
-        if self._acceleration_cycle is None:
-            return new_ks
-        if i == 0 or i % self._acceleration_cycle > 0:
-            return new_ks
-        y_kp2 = new_ks
-        y_kp1 = ks_history[-1]
-        y_k = ks_history[-2]
-        d_k = y_kp1 - y_k
-        d_kp1 = y_kp2 - y_kp1
-        lam = np.sum(d_kp1)**2/np.sum(d_k*d_kp1)
-        y_inf = y_kp2 + d_kp1*lam/(1.0-lam)
-
-        return y_inf
-
     def _calc_total_G(self, flash_input, result, props_l, props_v):
         total_z = np.sum(flash_input.zs)
         total_v = total_z * result.beta
@@ -154,12 +201,4 @@ class SuccessiveSubstitutionSolver:
         li = total_l * result.xs
         log_yi = np.log(result.ys) if total_v > 0.0 else np.zeros(self._stream.inflow_size)
         log_xi = np.log(result.xs) if total_l > 0.0 else np.zeros(self._stream.inflow_size)
-        return np.sum(vi*(log_yi + props_v.phi)) + np.sum(li*(log_xi + props_l.phi))
-
-
-
-
-
-
-
-
+        return np.sum(vi * (log_yi + props_v.phi)) + np.sum(li * (log_xi + props_l.phi))
