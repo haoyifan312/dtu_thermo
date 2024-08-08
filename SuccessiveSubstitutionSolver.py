@@ -25,29 +25,63 @@ class SSAccelerationDummy:
     def counter(self):
         return 0
 
-class SSAccelerationCycle:
+
+class SSAccelerationCriteriaByCycle:
     def __init__(self, cycle=5):
         self._cycle = cycle
+
+    def do_extrapolation(self, current_iter, lambda_term):
+        return current_iter % self._cycle == 0
+
+
+class SSAccelerationCriteriaByChange:
+    def __init__(self, diff_tol=0.01):
+        self._history = []
+        self._diff_tol = diff_tol
+
+    def do_extrapolation(self, current_iter, lambda_term):
+        self._history.append(lambda_term)
+        if len(self._history) < 2:
+            return False
+        last_term = self._history[-2]
+        if abs(last_term) < 1e-50:
+            return False
+        rel_diff = abs((lambda_term - last_term) / last_term)
+        return rel_diff < self._diff_tol
+
+
+class SSAccelerationDEM:
+    """
+    successive sublimation acceleration by dominant eigenvalue method
+    """
+
+    def __init__(self, criteria=SSAccelerationCriteriaByCycle()):
         self._did = False
         self._counter = 0
+        self._criteria = criteria
 
     def check(self, current_iter, ss_var_history, new_var):
         self._did = False
-        if current_iter == 0 or current_iter % self._cycle > 0:
+        if current_iter == 0:
             return new_var
+
         y_kp2 = new_var
         y_kp1 = ss_var_history[-1]
         y_k = ss_var_history[-2]
         d_k = y_kp1 - y_k
         d_kp1 = y_kp2 - y_kp1
-        lam_denom = np.sum(d_k * d_kp1)
-        if abs(lam_denom) < 1e-30:
+        dk_transpose_dkp1 = np.sum(d_k * d_kp1)
+        if abs(dk_transpose_dkp1) < 1e-30:
             return new_var
-        lam = np.sum(d_kp1) ** 2 / lam_denom
-        y_inf_denom = 1.0 - lam
-        if abs(y_inf_denom) < 1e-10:
+        lam = np.sum(d_kp1) ** 2 / dk_transpose_dkp1
+        lambda_denom = 1.0 - lam
+        if abs(lambda_denom) < 1e-10:
             return new_var
-        y_inf = y_kp2 + d_kp1 * lam /y_inf_denom
+        lambda_term = lam / lambda_denom
+        if not self._criteria.do_extrapolation(current_iter, lambda_term):
+            return new_var
+
+        y_inf = y_kp2 + d_kp1 * lambda_term
 
         self._did = True
         self._counter += 1
@@ -104,6 +138,8 @@ class SuccessiveSubstitutionSolver:
             if g_diff < 0.0 or not self._acceleration.did:
                 new_ks = np.exp(props_l.phi) / np.exp(props_v.phi)
                 new_ks = self._acceleration.check(i, ks_history, new_ks)
+            elif abs(g_diff) < self._ss_tol*self._ss_tol:
+                break
             else:
                 new_ks = ks_history[-2]
 

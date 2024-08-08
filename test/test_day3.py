@@ -72,7 +72,10 @@ class TestSuccessiveSubstitution(unittest.TestCase):
         show_plot = False
         with init_system(self.components, 'SRK') as stream:
             ss = SuccessiveSubstitutionSolver(stream)
-            ss_a = SuccessiveSubstitutionSolver(stream, acceleration=SSAccelerationCycle(5))
+            acc_by_cycle = SSAccelerationCriteriaByCycle(5)
+            ss_acc_by_cycle = SuccessiveSubstitutionSolver(stream, acceleration=SSAccelerationDEM(acc_by_cycle))
+            acc_by_change = SSAccelerationCriteriaByChange(0.01)
+            ss_acc_by_change = SuccessiveSubstitutionSolver(stream, acceleration=SSAccelerationDEM(acc_by_change))
             flash_input = FlashInput(t, p, self.zs)
             try:
                 iters, result = ss.compute(flash_input, show_plot=show_plot)
@@ -85,15 +88,24 @@ class TestSuccessiveSubstitution(unittest.TestCase):
             print(f'\nT={t} K; P={p} MPa')
             # print(result)
             try:
-                iters_ac, result_a = ss_a.compute(flash_input, show_plot=show_plot)
+                iters_ac, result_a = ss_acc_by_cycle.compute(flash_input, show_plot=show_plot)
             except SuccessiveSubstitutionException as e:
-                iters_ac = ss_a._max_iter
+                iters_ac = ss_acc_by_cycle._max_iter
                 result_a = e.result
+
+            try:
+                iters_ac_byc, result_a_byc = ss_acc_by_change.compute(flash_input, show_plot=show_plot)
+            except SuccessiveSubstitutionException as e:
+                iters_ac_byc = ss_acc_by_cycle._max_iter
+                result_a_byc = e.result
+
             if beta_gold is not None:
                 self.assertAlmostEqual(result_a.beta, result.beta, 5)
-            print('\n\t\toriginal\taccelerated\t')
-            print(f'beta\t{result.beta :.4f}\t{result_a.beta :.4f}')
-            print(f'iters\t{iters}\t{iters_ac}')
-            print(f'acc_count\t{ss._acceleration.counter}\t{ss_a._acceleration.counter}')
+                self.assertAlmostEqual(result_a_byc.beta, result.beta, 5)
+            print('\n\t\toriginal\tacc by cycle\tacc by change')
+            print(f'beta\t{result.beta :.4f}\t{result_a.beta :.4f}\t{result_a_byc.beta :.4f}')
+            print(f'iters\t{iters}\t{iters_ac}\t{iters_ac_byc}')
+            print(f'acc_count\t{ss._acceleration.counter}\t{ss_acc_by_cycle._acceleration.counter}\t'
+                  f'{ss_acc_by_change._acceleration.counter}')
             print('\n\n\n')
 
