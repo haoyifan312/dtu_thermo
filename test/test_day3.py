@@ -76,36 +76,54 @@ class TestSuccessiveSubstitution(unittest.TestCase):
             ss_acc_by_cycle = SuccessiveSubstitutionSolver(stream, acceleration=SSAccelerationDEM(acc_by_cycle))
             acc_by_change = SSAccelerationCriteriaByChange(0.01)
             ss_acc_by_change = SuccessiveSubstitutionSolver(stream, acceleration=SSAccelerationDEM(acc_by_change))
+
+            ss_acc_by_change_sloppy = SuccessiveSubstitutionSolver(stream,
+                                                                   rr_fast=RachfordRiceBase.create_solver(stream.inflow_size,
+                                                                                                     RachfordRiceSolverOption.SLOPPY),
+                                                                   acceleration=SSAccelerationDEM(acc_by_change))
             flash_input = FlashInput(t, p, self.zs)
             try:
-                iters, result = ss.compute(flash_input, show_plot=show_plot)
+                iters, rr_iters, result = ss.compute(flash_input, show_plot=show_plot)
             except SuccessiveSubstitutionException as e:
                 iters = ss._max_iter
                 result = e.result
+                rr_iters = e.total_rr_count
 
             if beta_gold is not None:
                 self.assertAlmostEqual(result.beta, beta_gold, 3)
             print(f'\nT={t} K; P={p} MPa')
             # print(result)
             try:
-                iters_ac, result_a = ss_acc_by_cycle.compute(flash_input, show_plot=show_plot)
+                iters_ac, rr_iters_ac, result_a = ss_acc_by_cycle.compute(flash_input, show_plot=show_plot)
             except SuccessiveSubstitutionException as e:
                 iters_ac = ss_acc_by_cycle._max_iter
                 result_a = e.result
+                rr_iters_ac = e.total_rr_count
 
             try:
-                iters_ac_byc, result_a_byc = ss_acc_by_change.compute(flash_input, show_plot=show_plot)
+                iters_ac_byc, rr_iters_ac_byc, result_a_byc = ss_acc_by_change.compute(flash_input, show_plot=show_plot)
             except SuccessiveSubstitutionException as e:
                 iters_ac_byc = ss_acc_by_cycle._max_iter
                 result_a_byc = e.result
+                rr_iters_ac_byc = e.total_rr_count
+
+            try:
+                iters_sloppy, rr_iters_sloppy, result_sloppy = ss_acc_by_change_sloppy.compute(flash_input, show_plot=show_plot)
+            except SuccessiveSubstitutionException as e:
+                iters_sloppy = ss_acc_by_cycle._max_iter
+                result_sloppy = e.result
+                rr_iters_sloppy = e.total_rr_count
 
             if beta_gold is not None:
                 self.assertAlmostEqual(result_a.beta, result.beta, 5)
                 self.assertAlmostEqual(result_a_byc.beta, result.beta, 5)
-            print('\n\t\toriginal\tacc by cycle\tacc by change')
-            print(f'beta\t{result.beta :.4f}\t{result_a.beta :.4f}\t{result_a_byc.beta :.4f}')
-            print(f'iters\t{iters}\t{iters_ac}\t{iters_ac_byc}')
+                self.assertAlmostEqual(result_sloppy.beta, result.beta, 5)
+            print('\n\t\toriginal\tacc by cycle\tacc by change\tsloppy')
+            print(f'beta\t{result.beta :.4f}\t{result_a.beta :.4f}\t{result_a_byc.beta :.4f}'
+                  f'\t{result_sloppy.beta :.4f}')
+            print(f'iters\t{iters}\t{iters_ac}\t{iters_ac_byc}\t{iters_sloppy}')
+            print(f'rr iters\t{rr_iters}\t{rr_iters_ac}\t{rr_iters_ac_byc}\t{rr_iters_sloppy}')
             print(f'acc_count\t{ss._acceleration.counter}\t{ss_acc_by_cycle._acceleration.counter}\t'
-                  f'{ss_acc_by_change._acceleration.counter}')
+                  f'{ss_acc_by_change._acceleration.counter}\t{ss_acc_by_change_sloppy._acceleration.counter}')
             print('\n\n\n')
 

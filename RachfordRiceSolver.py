@@ -18,6 +18,10 @@ class RachfordRiceResult:
     betas: List = dataclasses.field(default_factory=list)
 
     @property
+    def rr_iters(self):
+        return len(self.betas)
+
+    @property
     def phase(self):
         if 0.0 < self.beta < 1.0:
             return PhaseEnum.VLE

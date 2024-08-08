@@ -9,6 +9,7 @@ from thermclc_interface import *
 class SuccessiveSubstitutionException(Exception):
     def __init__(self, *args, **kwargs):
         self.result = kwargs.pop('result')
+        self.total_rr_count = kwargs.pop('total_rr_count')
         super().__init__(*args, **kwargs)
 
 
@@ -97,12 +98,16 @@ class SSAccelerationDEM:
 
 
 class SuccessiveSubstitutionSolver:
-    def __init__(self, stream: ThermclcInterface, rr=None, acceleration=SSAccelerationDummy()):
+    def __init__(self, stream: ThermclcInterface, rr_rigorous=None, rr_fast=None,
+                 acceleration=SSAccelerationDummy()):
         self._stream = stream
-        if rr is None:
-            rr = RachfordRiceBase(stream.inflow_size)
-        self._rr = rr
-        self._max_iter = 1000
+        if rr_rigorous is None:
+            rr_rigorous = RachfordRiceBase(stream.inflow_size)
+        if rr_fast is None:
+            rr_fast = RachfordRiceBase(stream.inflow_size)
+        self._rr_rigous = rr_rigorous
+        self._rr_fast = rr_fast
+        self._max_iter = 2000
         self._ss_tol = 1e-7
         self._acceleration = acceleration
 
@@ -110,7 +115,7 @@ class SuccessiveSubstitutionSolver:
         if initial_ks is None:
             initial_ks, initial_result = self._calculate_initial_results_from_wilson_k(flash_input)
         else:
-            initial_result = self._rr.compute(initial_ks, flash_input.zs)
+            initial_result = self._rr_rigous.compute(initial_ks, flash_input.zs)
         if initial_result.phase in (PhaseEnum.VAP, PhaseEnum.LIQ):
             if self._stablity_analysis_suggest_single_phase(flash_input, initial_result):
                 return 1, initial_result
@@ -125,6 +130,7 @@ class SuccessiveSubstitutionSolver:
         beta_history = []
         g_history = []
         g_diff = -1
+        total_rr_count = initial_result.rr_iters
         for i in range(self._max_iter):
             beta_history.append(last_result.beta)
             props_v = self._stream.calc_properties(FlashInput(t, p, last_result.ys_or_zs), PhaseEnum.VAP)
@@ -158,6 +164,7 @@ class SuccessiveSubstitutionSolver:
                 break
 
             last_result = self._solve_beta_from_rachford_rice(new_ks, flash_input.zs, last_result.beta)
+            total_rr_count += last_result.rr_iters
         else:
             # plt.plot(g_history)
             # plt.show()
@@ -167,17 +174,21 @@ class SuccessiveSubstitutionSolver:
                 plt.yscale('log')
                 plt.show()
             raise SuccessiveSubstitutionException(f'Successive substitution solver failed to converge '
-                                                  f'at max iterations of {self._max_iter}', result=last_result)
-        return i, last_result
+                                                  f'at max iterations of {self._max_iter}', result=last_result,
+                                                  total_rr_count=total_rr_count)
+        return i, total_rr_count, last_result
 
     def _calculate_initial_results_from_wilson_k(self, flash_input: FlashInput):
         t = flash_input.T
         p = flash_input.P
         ks = self._stream.all_wilson_ks(t, p)
-        return ks, self._rr.compute(ks, flash_input.zs)
+        return ks, self._rr_rigous.compute(ks, flash_input.zs)
 
     def _solve_beta_from_rachford_rice(self, new_ks, zs, beta_initial_guess=None):
-        return self._rr.compute(new_ks, zs, initial_guess=beta_initial_guess)
+        if self._acceleration.did:
+            return self._rr_rigous.compute(new_ks, zs, initial_guess=beta_initial_guess)
+        else:
+            return self._rr_fast.compute(new_ks, zs, initial_guess=beta_initial_guess)
 
     def _get_initial_ks_without_material_balance(self, flash_input, beta):
         ret = RachfordRiceResult(beta=None)
