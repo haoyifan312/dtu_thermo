@@ -147,7 +147,7 @@ def INDATA(NCA,ICEQ,LIST):
 # GET EOS CONSTANTS
     [CONA, CONB] = CONST()
 # RUN THROUGH LIST ELEMENTS TO SELECT COMPONENTS
-    print(" COMP    TCRIT      PCRIT   OMEGA    M-FACTOR ")
+    # print(" COMP    TCRIT      PCRIT   OMEGA    M-FACTOR ")
     for i in range(0,N):
         l=LIST[i]-1 # note the weird index in Python
         NEW[i]=NAME[l]
@@ -168,23 +168,23 @@ def INDATA(NCA,ICEQ,LIST):
                 Q[i]=0.37464+OMG[i]*(1.54226-0.26992*OMG[i])
             else:
                 Q[i]=0.379642+OMG[i]*(1.48503-OMG[i]*(0.16444+0.01666*OMG[i]))
-        print("%5s %9.2f %9.2f %8.4f %9.4f"% (NEW[i],TCR[i],PCR[i],OMG[i],Q[i]))
-    print("\n  BINARY INTERACTION COEFFICIENTS \n     ")
-    print("     ",end="")
-    for i in range(0,N):
-        print("%6s"% (NEW[i]), end='')
-    print()    
+        # print("%5s %9.2f %9.2f %8.4f %9.4f"% (NEW[i],TCR[i],PCR[i],OMG[i],Q[i]))
+    # print("\n  BINARY INTERACTION COEFFICIENTS \n     ")
+    # print("     ",end="")
+    # for i in range(0,N):
+    #     print("%6s"% (NEW[i]), end='')
+    # print()    
     for j in range(0,N):
         l1=LIST[j]-1
         for i in range(0,N):
             l=LIST[i]-1
             CKMAT[i,j]=CKV[l1,l]
             CKMAT[j,i]=CKV[l,l1]
-        if j>-1:
-            print("%5s"% (NEW[j]), end='')
-            for k in range(0,j):
-                print("%5.2f "% (CKMAT[k,j]), end='')
-            print()
+        # if j>-1:
+        #     # print("%5s"% (NEW[j]), end='')
+        #     for k in range(0,j):
+        #         print("%5.2f "% (CKMAT[k,j]), end='')
+        #     # print()
     TEMSET(0.0);
     
     #print(T)
@@ -579,7 +579,7 @@ def INIT(NCA,NOMA,LIST): # similar to INDATA but for 3 other models
 # GET EOS CONSTANTS
     [CONA, CONB] = CONST()   
 # RUN THROUGH LIST ELEMENTS TO SELECT COMPONENTS
-    print(" COMP    TCRIT      PCRIT   OMEGA    M-FACTOR ")
+    # print(" COMP    TCRIT      PCRIT   OMEGA    M-FACTOR ")
     for i in range(0,N):
         l=LIST[i]-1 # note the weird index in Python
         NEW[i]=NAME[l]
@@ -599,12 +599,12 @@ def INIT(NCA,NOMA,LIST): # similar to INDATA but for 3 other models
                 Q[i]=0.37464+OMG[i]*(1.54226-0.26992*OMG[i])
             else:
                 Q[i]=0.379642+OMG[i]*(1.48503-OMG[i]*(0.16444+0.01666*OMG[i]))
-        print("%5s %9.2f %9.2f %8.4f %9.4f"% (NEW[i],TCR[i],PCR[i],OMG[i],Q[i]))       
-    print("\n  BINARY INTERACTION COEFFICIENTS \n     ")
-    print("     ",end="")
-    for i in range(0,N):
-        print("%6s "% (NEW[i]), end='')
-    print()    
+        # print("%5s %9.2f %9.2f %8.4f %9.4f"% (NEW[i],TCR[i],PCR[i],OMG[i],Q[i]))       
+    # print("\n  BINARY INTERACTION COEFFICIENTS \n     ")
+    # print("     ",end="")
+    # for i in range(0,N):
+    #     print("%6s "% (NEW[i]), end='')
+    # print()    
     for i in range(0,NC):
         for j in range(0,NC):
             if j==i:
@@ -612,11 +612,11 @@ def INIT(NCA,NOMA,LIST): # similar to INDATA but for 3 other models
             else:
                 CKMAT[i,j] = (j-i)*0.02
                 CKMAT[j,i] = -0.7*CKMAT[i,j]
-        if i>-1:
-            print("%5s"% (NEW[i]), end='')
-            for j in range(0,i):
-                print("%5.2f "% (CKMAT[i,j]), end='')
-            print()
+        # if i>-1:
+            # print("%5s"% (NEW[i]), end='')
+            # for j in range(0,i):
+            #     print("%5.2f "% (CKMAT[i,j]), end='')
+            # print()
     TEMSET(0.0);
 
 #@jit

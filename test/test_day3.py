@@ -3,7 +3,7 @@ import unittest
 import numpy as np
 
 from RachfordRiceSolver import RachfordRiceSolverOption, RachfordRiceBase
-from SuccessiveSubstitutionSolver import SuccessiveSubstitutionSolver, FlashInput
+from SuccessiveSubstitutionSolver import SuccessiveSubstitutionSolver, FlashInput, SuccessiveSubstitutionException
 from thermclc_interface import example_7_component, init_system
 
 
@@ -50,16 +50,47 @@ class TestSuccessiveSubstitution(unittest.TestCase):
     def test_case4(self):
         self._test_example_case(3)
 
-    def test_case5_no_split_from_wilson_ks(self):
-        self._test_example_case(4, initial_ks=None)
+    def test_case5(self):
+        self._test_example_case(4)
 
-    def _test_example_case(self, i, initial_ks=None):
-        t = self.ts[i]  # 200 K
-        p = self.ps[i]  # 5 MPa
+    def test_question2(self):
+        t = 205.0
+        p = 6.0
+        for i in range(10):
+            p_new = p + i*0.02
+            self._test_case_for_t_p(t, p_new)
+
+
+    def _test_example_case(self, i):
+        t = self.ts[i]
+        p = self.ps[i]
+        self._test_case_for_t_p(t, p, self.betas_gold[i])
+
+    def _test_case_for_t_p(self, t, p, beta_gold=None):
+        show_plot = False
         with init_system(self.components, 'SRK') as stream:
             ss = SuccessiveSubstitutionSolver(stream)
-            iters, result = ss.compute(FlashInput(t, p, self.zs), initial_ks=initial_ks)
-            print(f'T={t} K; P={p} MPa')
-            print(f'total successive substitution iterations={iters}')
-            print(result)
-            self.assertAlmostEqual(result.beta, self.betas_gold[i], 3)
+            ss_a = SuccessiveSubstitutionSolver(stream, acceleration_cycle=5)
+            flash_input = FlashInput(t, p, self.zs)
+            try:
+                iters, result = ss.compute(flash_input, show_plot=show_plot)
+            except SuccessiveSubstitutionException as e:
+                iters = ss._max_iter
+                result = e.result
+
+            if beta_gold is not None:
+                self.assertAlmostEqual(result.beta, beta_gold, 3)
+            print(f'\nT={t} K; P={p} MPa')
+            # print(result)
+            try:
+                iters_ac, result_a = ss_a.compute(flash_input, show_plot=show_plot)
+            except SuccessiveSubstitutionException as e:
+                iters_ac = ss_a._max_iter
+                result_a = e.result
+            if beta_gold is not None:
+                self.assertAlmostEqual(result_a.beta, result.beta, 5)
+            print('\n\t\toriginal\taccelerated\t')
+            print(f'beta\t{result.beta :.4f}\t{result_a.beta :.4f}')
+            print(f'iters\t{iters}\t{iters_ac}')
+            print('\n\n\n')
+

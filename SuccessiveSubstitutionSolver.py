@@ -1,25 +1,28 @@
 from copy import deepcopy
 
-import numpy as np
+import matplotlib.pyplot as plt
 
 from RachfordRiceSolver import RachfordRiceBase, RachfordRiceResult
 from thermclc_interface import *
 
 
 class SuccessiveSubstitutionException(Exception):
-    pass
+    def __init__(self, *args, **kwargs):
+        self.result = kwargs.pop('result')
+        super().__init__(*args, **kwargs)
 
 
 class SuccessiveSubstitutionSolver:
-    def __init__(self, stream: ThermclcInterface, rr=None):
+    def __init__(self, stream: ThermclcInterface, rr=None, acceleration_cycle=None):
         self._stream = stream
         if rr is None:
             rr = RachfordRiceBase(stream.inflow_size)
         self._rr = rr
         self._max_iter = 1000
         self._ss_tol = 1e-7
+        self._acceleration_cycle = acceleration_cycle
 
-    def compute(self, flash_input: FlashInput, initial_ks=None):
+    def compute(self, flash_input: FlashInput, initial_ks=None, show_plot=False):
         if initial_ks is None:
             initial_ks, initial_result = self._calculate_initial_results_from_wilson_k(flash_input)
         else:
@@ -27,27 +30,46 @@ class SuccessiveSubstitutionSolver:
         if initial_result.phase in (PhaseEnum.VAP, PhaseEnum.LIQ):
             if self._stablity_analysis_suggest_single_phase(flash_input, initial_result):
                 return 1, initial_result
-        return self.solve_successive_substitution(flash_input, initial_ks, initial_result)
+        return self.solve_successive_substitution(flash_input, initial_ks, initial_result, show_plot=show_plot)
 
-    def solve_successive_substitution(self, flash_input, initial_ks, initial_result):
+    def solve_successive_substitution(self, flash_input, initial_ks, initial_result, show_plot=False):
         t = flash_input.T
         p = flash_input.P
         last_result = deepcopy(initial_result)
         new_ks = initial_ks.copy()
+        ks_history = []
+        beta_history = []
+        g_history = []
         for i in range(self._max_iter):
+            beta_history.append(last_result.beta)
             props_v = self._stream.calc_properties(FlashInput(t, p, last_result.ys_or_zs), PhaseEnum.VAP)
             props_l = self._stream.calc_properties(FlashInput(t, p, last_result.xs_or_zs), PhaseEnum.LIQ)
+            g_history.append(self._calc_total_G(flash_input, last_result, props_l, props_v))
+            if i > 0:
+                g_diff = g_history[-1] - g_history[-2]
             last_ks = new_ks.copy()
+            ks_history.append(last_ks)
             new_ks = np.exp(props_l.phi) / np.exp(props_v.phi)
+            new_ks = self._accelerate_ks(i, ks_history, new_ks)
 
             k_diffs = np.abs(new_ks - last_ks)
             if np.max(k_diffs) < self._ss_tol:
+                beta_err_history = [abs(el-beta_history[-1]) for el in beta_history]
+                # beta_err_history = [np.log(abs(el)) for el in beta_err_history]
+                print([e for e in beta_err_history])
+                if show_plot:
+                    plt.plot(beta_err_history)
+                    plt.yscale('log')
+                    plt.show()
+                print(f'G_history={[float(a) for a in g_history]}')
+                # plt.plot(g_history)
+                # plt.show()
                 break
 
             last_result = self._solve_beta_from_rachford_rice(new_ks, flash_input.zs, last_result.beta)
         else:
             raise SuccessiveSubstitutionException(f'Successive substitution solver failed to converge '
-                                                  f'at max iterations of {self._max_iter}')
+                                                  f'at max iterations of {self._max_iter}', result=last_result)
         return i, last_result
 
     def _calculate_initial_results_from_wilson_k(self, flash_input: FlashInput):
@@ -109,7 +131,30 @@ class SuccessiveSubstitutionSolver:
             raise SuccessiveSubstitutionException(f'Successive substitution on tm reached '
                                                   f'max iterations {self._max_iter}')
 
+    def _accelerate_ks(self, i, ks_history, new_ks):
+        if self._acceleration_cycle is None:
+            return new_ks
+        if i == 0 or i % self._acceleration_cycle > 0:
+            return new_ks
+        y_kp2 = new_ks
+        y_kp1 = ks_history[-1]
+        y_k = ks_history[-2]
+        d_k = y_kp1 - y_k
+        d_kp1 = y_kp2 - y_kp1
+        lam = np.sum(d_kp1)**2/np.sum(d_k*d_kp1)
+        y_inf = y_kp2 + d_kp1*lam/(1.0-lam)
 
+        return y_inf
+
+    def _calc_total_G(self, flash_input, result, props_l, props_v):
+        total_z = np.sum(flash_input.zs)
+        total_v = total_z * result.beta
+        total_l = total_z - total_v
+        vi = total_v * result.ys
+        li = total_l * result.xs
+        log_yi = np.log(result.ys) if total_v > 0.0 else np.zeros(self._stream.inflow_size)
+        log_xi = np.log(result.xs) if total_l > 0.0 else np.zeros(self._stream.inflow_size)
+        return np.sum(vi*(log_yi + props_v.phi)) + np.sum(li*(log_xi + props_l.phi))
 
 
 
