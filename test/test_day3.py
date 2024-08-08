@@ -1,10 +1,9 @@
 import unittest
 
-import numpy as np
-
 from RachfordRiceSolver import RachfordRiceSolverOption, RachfordRiceBase
-from SuccessiveSubstitutionSolver import *
+from TwoPhaseFlash import *
 from thermclc_interface import example_7_component, init_system
+from SuccessiveSubstitutionSolver import *
 
 
 class TestSuccessiveSubstitution(unittest.TestCase):
@@ -34,8 +33,8 @@ class TestSuccessiveSubstitution(unittest.TestCase):
     def test_constructor(self):
         solver = self.create_solver()
         with init_system(self.components, 'SRK') as stream:
-            ss = SuccessiveSubstitutionSolver(stream, solver)
-            ss_default_solver = SuccessiveSubstitutionSolver(stream)
+            ss = TwoPhaseFlash(stream, solver)
+            ss_default_solver = TwoPhaseFlash(stream)
             self.assertTrue(True)
 
     def test_case1(self):
@@ -71,48 +70,36 @@ class TestSuccessiveSubstitution(unittest.TestCase):
     def _test_case_for_t_p(self, t, p, beta_gold=None):
         show_plot = False
         with init_system(self.components, 'SRK') as stream:
-            ss = SuccessiveSubstitutionSolver(stream)
+            ss = TwoPhaseFlash(stream)
             acc_by_cycle = SSAccelerationCriteriaByCycle(5)
-            ss_acc_by_cycle = SuccessiveSubstitutionSolver(stream, acceleration=SSAccelerationDEM(acc_by_cycle))
+            ss_acc_by_cycle = TwoPhaseFlash(stream, acceleration=SSAccelerationDEM(acc_by_cycle))
             acc_by_change = SSAccelerationCriteriaByChange(0.01)
-            ss_acc_by_change = SuccessiveSubstitutionSolver(stream, acceleration=SSAccelerationDEM(acc_by_change))
+            ss_acc_by_change = TwoPhaseFlash(stream, acceleration=SSAccelerationDEM(acc_by_change))
 
-            ss_acc_by_change_sloppy = SuccessiveSubstitutionSolver(stream,
-                                                                   rr_fast=RachfordRiceBase.create_solver(stream.inflow_size,
+            ss_acc_by_change_sloppy = TwoPhaseFlash(stream,
+                                                    rr_fast=RachfordRiceBase.create_solver(stream.inflow_size,
                                                                                                      RachfordRiceSolverOption.SLOPPY),
-                                                                   acceleration=SSAccelerationDEM(acc_by_change))
+                                                    acceleration=SSAccelerationDEM(acc_by_change))
             flash_input = FlashInput(t, p, self.zs)
-            try:
-                iters, rr_iters, result = ss.compute(flash_input, show_plot=show_plot)
-            except SuccessiveSubstitutionException as e:
-                iters = ss._max_iter
-                result = e.result
-                rr_iters = e.total_rr_count
+            iters, result, rr_iters = self.compute_successive_substitution_allow_max_iter_reached(flash_input,
+                                                                                                          show_plot,
+                                                                                                          ss)
 
             if beta_gold is not None:
                 self.assertAlmostEqual(result.beta, beta_gold, 3)
             print(f'\nT={t} K; P={p} MPa')
             # print(result)
-            try:
-                iters_ac, rr_iters_ac, result_a = ss_acc_by_cycle.compute(flash_input, show_plot=show_plot)
-            except SuccessiveSubstitutionException as e:
-                iters_ac = ss_acc_by_cycle._max_iter
-                result_a = e.result
-                rr_iters_ac = e.total_rr_count
+            iters_ac, result_a, rr_iters_ac = self.compute_successive_substitution_allow_max_iter_reached(flash_input,
+                                                                                                          show_plot,
+                                                                                                          ss_acc_by_cycle)
 
-            try:
-                iters_ac_byc, rr_iters_ac_byc, result_a_byc = ss_acc_by_change.compute(flash_input, show_plot=show_plot)
-            except SuccessiveSubstitutionException as e:
-                iters_ac_byc = ss_acc_by_cycle._max_iter
-                result_a_byc = e.result
-                rr_iters_ac_byc = e.total_rr_count
+            iters_ac_byc, result_a_byc, rr_iters_ac_byc = self.compute_successive_substitution_allow_max_iter_reached(flash_input,
+                                                                                                          show_plot,
+                                                                                                          ss_acc_by_change)
 
-            try:
-                iters_sloppy, rr_iters_sloppy, result_sloppy = ss_acc_by_change_sloppy.compute(flash_input, show_plot=show_plot)
-            except SuccessiveSubstitutionException as e:
-                iters_sloppy = ss_acc_by_cycle._max_iter
-                result_sloppy = e.result
-                rr_iters_sloppy = e.total_rr_count
+            iters_sloppy, result_sloppy, rr_iters_sloppy = self.compute_successive_substitution_allow_max_iter_reached(flash_input,
+                                                                                                          show_plot,
+                                                                                                          ss_acc_by_change_sloppy)
 
             if beta_gold is not None:
                 self.assertAlmostEqual(result_a.beta, result.beta, 5)
@@ -126,4 +113,13 @@ class TestSuccessiveSubstitution(unittest.TestCase):
             print(f'acc_count\t{ss._acceleration.counter}\t{ss_acc_by_cycle._acceleration.counter}\t'
                   f'{ss_acc_by_change._acceleration.counter}\t{ss_acc_by_change_sloppy._acceleration.counter}')
             print('\n\n\n')
+
+    def compute_successive_substitution_allow_max_iter_reached(self, flash_input, show_plot, ss_acc_by_cycle):
+        try:
+            iters_ac, rr_iters_ac, result_a = ss_acc_by_cycle.compute(flash_input, show_plot=show_plot)
+        except TwoPhaseFlashException as e:
+            iters_ac = ss_acc_by_cycle._max_iter
+            result_a = e.result
+            rr_iters_ac = e.total_rr_count
+        return iters_ac, result_a, rr_iters_ac
 

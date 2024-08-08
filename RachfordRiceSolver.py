@@ -56,10 +56,10 @@ class RachfordRiceResult:
         self.ys = zs.copy()
 
     def normalize_xs(self):
-        self.xs = self.xs/np.sum(self.xs)
+        self.xs = self.xs / np.sum(self.xs)
 
     def normalize_ys(self):
-        self.ys = self.ys/np.sum(self.ys)
+        self.ys = self.ys / np.sum(self.ys)
 
     @property
     def xs_or_zs(self):
@@ -68,6 +68,7 @@ class RachfordRiceResult:
     @property
     def ys_or_zs(self):
         return self.ys if np.sum(self.ys) > 0.0 else self.xs
+
 
 def raise_max_iter_exception(max_iter: int):
     raise RachfordRiceException(f'Rachford-Rice solver did not converge in {max_iter} iterations')
