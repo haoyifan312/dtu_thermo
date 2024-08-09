@@ -34,10 +34,11 @@ class SAResult:
 
 
 class StabilityAnalysis:
-    def __init__(self, stream: ThermclcInterface, ss_max_iter=1000, ss_tol=1e-7):
+    def __init__(self, stream: ThermclcInterface, ss_max_iter=1000, ss_tol=1e-7, acceleration=SSAccelerationDummy()):
         self._stream = stream
         self._ss_max_iter = ss_max_iter
         self._ss_tol = ss_tol
+        self._acceleration = acceleration
 
     def d(self, x, ln_phi_x):
         return np.log(x) + ln_phi_x
@@ -65,7 +66,8 @@ class StabilityAnalysis:
 
         ss = SuccessiveSubstitutionSolver(compute_phi_k, None, compute_wi,
                                           max_iter_action, max_iter=self._ss_max_iter,
-                                          tol=self._ss_tol)
+                                          tol=self._ss_tol,
+                                          acceleration=self._acceleration)
         initial_flash_input = FlashInput(flash_input.T, flash_input.T, wi_guess)
         ss_iters, (ws, ln_ws) = ss.solve(self._stream.calc_properties(initial_flash_input, PhaseEnum.STABLE).phi,
                                          (wi_guess, np.log(wi_guess)))

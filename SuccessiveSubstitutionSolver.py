@@ -88,6 +88,9 @@ class SSAccelerationDEM:
         if abs(dk_transpose_dkp1) < 1e-30:
             return new_var
         lam = np.sum(d_kp1) ** 2 / dk_transpose_dkp1
+        if lam < 0.0 or lam > 0.95:
+            return new_var
+
         lambda_denom = 1.0 - lam
         if abs(lambda_denom) < 1e-10:
             return new_var
