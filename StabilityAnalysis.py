@@ -4,16 +4,19 @@ from enum import IntEnum
 
 import numpy as np
 
+from SuccessiveSubstitutionSolver import SuccSubStatus, SuccessiveSubstitutionSolver, SSAccelerationDummy
 from thermclc_interface import FlashInput, ThermclcInterface, PhaseEnum
 
 
 class SAException(Exception):
     pass
 
+
 class SAResultType(IntEnum):
     TRIVIAL = 0
     POSITIVE = 1
     NEGATIVE = -1
+
 
 @dataclasses.dataclass
 class SAResult:
@@ -29,38 +32,48 @@ class SAResult:
         else:
             return SAResultType.NEGATIVE
 
+
 class StabilityAnalysis:
     def __init__(self, stream: ThermclcInterface):
         self._stream = stream
         self._max_iter = 1000
         self._ss_tol = 1e-7
 
+    def d(self, x, ln_phi_x):
+        return np.log(x) + ln_phi_x
+
     def compute(self, flash_input: FlashInput, wi_guess):
         ln_phi_z = self._stream.calc_properties(flash_input, PhaseEnum.STABLE).phi
-        di = ln_phi_z + np.log(flash_input.zs)
-
-        new_ln_ws = np.log(wi_guess)
-        new_ws = wi_guess.copy()
+        di = self.d(flash_input.zs, ln_phi_z)
         new_flash_input = deepcopy(flash_input)
-        for i in range(self._max_iter):
+
+        def compute_phi_k(external_data, did_acceleration):
+            new_ws, new_ln_ws = external_data
             new_flash_input.zs = new_ws.copy()
             new_w_props = self._stream.calc_properties(new_flash_input, PhaseEnum.STABLE)
-            bracket_term = new_ln_ws + new_w_props.phi - di - 1.0
-            tm = 1.0 + np.sum(new_ws * bracket_term)
+            ln_phi_w = new_w_props.phi
+            return ln_phi_w, SuccSubStatus.CONTINUE, (new_ws, new_ln_ws)
 
-            # check tm < 0.0
-
-            old_ln_ws = new_ln_ws.copy()
-            new_ln_ws = di - new_w_props.phi
+        def compute_wi(ln_phi_w, _):
+            new_ln_ws = di - ln_phi_w
             new_ws = np.exp(new_ln_ws)
+            return new_ws, new_ln_ws
 
-            diff = np.abs(new_ln_ws - old_ln_ws)
-            if np.max(diff) < self._ss_tol:
-                return SAResult(tm, new_ws)
-        else:
+        def max_iter_action():
             raise SAException(f'Successive substitution on tm reached '
-                                         f'max iterations {self._max_iter}')
+                              f'max iterations {self._max_iter}')
 
+        ss = SuccessiveSubstitutionSolver(SSAccelerationDummy(), compute_phi_k, None, compute_wi,
+                                          max_iter_action)
+        initial_flash_input = FlashInput(flash_input.T, flash_input.T, wi_guess)
+        ss_iters, (ws, ln_ws) = ss.solve(self._stream.calc_properties(initial_flash_input, PhaseEnum.STABLE).phi,
+                                         (wi_guess, np.log(wi_guess)))
+        flash_input_w = FlashInput(flash_input.T, flash_input.P, ws)
+        ln_phi_w = self._stream.calc_properties(flash_input_w, PhaseEnum.STABLE).phi
+        return SAResult(self.compute_tm(ws, ln_phi_w, di), ws)
 
-
-
+    def compute_tm(self, wi: np.array, ln_phi_w, di):
+        dw = self.d(wi, ln_phi_w)
+        bracket_term = dw - di - 1.0
+        tm = 1.0 + np.sum(wi * bracket_term)
+        return tm

@@ -44,7 +44,7 @@ class SuccessiveSubstitutionSolver:
             g_k = g_kp1.copy()
             g_history.append(g_k)
 
-            g_kp1, ss_status = self._compute_new_g(external_data, self._acceleration.did)
+            g_kp1, ss_status, external_data = self._compute_new_g(external_data, self._acceleration.did)
             if ss_status == SuccSubStatus.CONVERGED:
                 break
             elif ss_status == SuccSubStatus.OVERSHOOT:
@@ -54,12 +54,14 @@ class SuccessiveSubstitutionSolver:
 
             g_diffs = np.abs(g_kp1 - g_k)
             if np.max(g_diffs) < self._ss_tol:
-                self._converged_fun()
+                if self._converged_fun:
+                    self._converged_fun()
                 break
 
             external_data = self._compute_for_next_iter(g_kp1, external_data)
         else:
-            self._max_iter_reached_fun()
+            if self._max_iter_reached_fun:
+                self._max_iter_reached_fun()
         return i, external_data
 
 

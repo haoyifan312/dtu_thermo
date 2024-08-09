@@ -56,11 +56,11 @@ class TwoPhaseFlash:
             g_diff = -1 if len(g_history) < 2 else g_history[-1] - g_history[-2]
             if g_diff < 0.0 or not did_acceleration_last_iter:
                 new_ks = np.exp(props_l.phi) / np.exp(props_v.phi)
-                return new_ks, SuccSubStatus.CONTINUE
+                return new_ks, SuccSubStatus.CONTINUE, last_result
             elif abs(g_diff) < self._ss_tol * self._ss_tol:
-                return None, SuccSubStatus.CONVERGED
+                return None, SuccSubStatus.CONVERGED, last_result
             else:
-                return None, SuccSubStatus.OVERSHOOT
+                return None, SuccSubStatus.OVERSHOOT, last_result
 
         def converged_fun():
             beta_err_history = [abs(el - beta_history[-1]) for el in beta_history]
