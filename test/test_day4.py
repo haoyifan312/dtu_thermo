@@ -51,13 +51,15 @@ class TestStabilityAnalysis(unittest.TestCase):
             sa = StabilityAnalysis(stream)
             ks = stream.all_wilson_ks(t, p)
             vap_wi_guess = estimate_light_phase_from_wilson_ks(self.zs, ks)
-            sa_vap_result = sa.compute(flash_input, vap_wi_guess)
+            sa_vap_result, ss_iters_vap = sa.compute(flash_input, vap_wi_guess)
+            print(f'Stability analysis from vapor estimate: tm={sa_vap_result.distance}, iters={ss_iters_vap}')
             self.assertAlmostEqual(sa_vap_result.distance, self.vap_distance_gold[i], 3)
             if sa_vap_result.category == SAResultType.TRIVIAL:
                 self.assertTrue(np.allclose(sa_vap_result.wi, self.zs))
 
             liq_wi_guess = estimate_heavy_phase_from_wilson_ks(self.zs, ks)
-            sa_liq_result = sa.compute(flash_input, liq_wi_guess)
+            sa_liq_result, ss_iters_liq = sa.compute(flash_input, liq_wi_guess)
+            print(f'Stability analysis from vapor estimate: tm={sa_liq_result.distance}, iters={ss_iters_liq}')
             self.assertAlmostEqual(sa_liq_result.distance, self.liq_distance_gold[i], 3)
             if sa_liq_result.category == SAResultType.TRIVIAL:
                 self.assertTrue(np.allclose(sa_liq_result.wi, self.zs))

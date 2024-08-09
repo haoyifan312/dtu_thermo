@@ -3,6 +3,7 @@ from copy import deepcopy
 import matplotlib.pyplot as plt
 
 from RachfordRiceSolver import RachfordRiceBase, RachfordRiceResult
+from StabilityAnalysis import StabilityAnalysis, SAResultType
 from SuccessiveSubstitutionSolver import SuccessiveSubstitutionSolver, SuccSubStatus, SSAccelerationDummy
 from thermclc_interface import *
 
@@ -24,9 +25,10 @@ class TwoPhaseFlash:
             rr_fast = RachfordRiceBase(stream.inflow_size)
         self._rr_rigous = rr_rigorous
         self._rr_fast = rr_fast
-        self._max_iter = 2000
+        self._ss_max_iter = 2000
         self._ss_tol = 1e-7
         self._acceleration = acceleration
+        self._sa = StabilityAnalysis(self._stream, ss_max_iter=self._ss_max_iter, ss_tol=self._ss_tol)
 
     def compute(self, flash_input: FlashInput, initial_ks=None, show_plot=False):
         if initial_ks is None:
@@ -38,7 +40,8 @@ class TwoPhaseFlash:
                 return 1, initial_result
         return self.solve_successive_substitution(flash_input, initial_ks, initial_result, show_plot=show_plot)
 
-    def solve_successive_substitution(self, flash_input, initial_ks, initial_result, show_plot=False):
+    def solve_successive_substitution(self, flash_input, initial_ks, initial_result: RachfordRiceResult,
+                                      show_plot=False, checked_stability_analysis=False):
         t = flash_input.T
         p = flash_input.P
         last_result = deepcopy(initial_result)
@@ -88,13 +91,23 @@ class TwoPhaseFlash:
                 plt.yscale('log')
                 plt.show()
             raise TwoPhaseFlashException(f'Successive substitution solver failed to converge '
-                                         f'at max iterations of {self._max_iter}', result=last_result,
+                                         f'at max iterations of {self._ss_max_iter}', result=last_result,
                                          total_rr_count=sum(rr_counts))
 
         self._acceleration.clear()
         ss = SuccessiveSubstitutionSolver(compute_ks, converged_fun, compute_for_next_iter,
-                                          max_iter_reached, acceleration=self._acceleration)
+                                          max_iter_reached, acceleration=self._acceleration,
+                                          max_iter=self._ss_max_iter, tol=self._ss_tol)
         ss_iters, last_result = ss.solve(new_ks, last_result)
+
+        if not checked_stability_analysis and last_result.phase != PhaseEnum.VLE:
+            is_two_phase, sa_ks = self._stability_analysis_suggest_two_phase(flash_input, last_result)
+            if is_two_phase:
+                sa_result = self._rr_rigous.compute(sa_ks, flash_input.zs)
+                return self.solve_successive_substitution(flash_input, sa_ks, sa_result, show_plot=show_plot,
+                                                          checked_stability_analysis=True)
+
+        self._flip_phase_if_reversed(flash_input, last_result)
 
         return ss_iters, sum(rr_counts), last_result
 
@@ -132,12 +145,9 @@ class TwoPhaseFlash:
             raise TwoPhaseFlashException(f'Phase {initial_result.phase.name} '
                                          f'should not perform stability analysis')
 
-
-
         ks = self._stream.all_wilson_ks(flash_input.T, flash_input.P)
         # new_ws = estimate_heavy_phase_from_wilson_ks(flash_input.zs, ks) if initial_result.phase == PhaseEnum.VAP else \
         #     estimate_light_phase_from_wilson_ks(flash_input.zs, ks)
-
 
     def calc_total_G(self, flash_input, result, props_l, props_v):
         total_z = np.sum(flash_input.zs)
@@ -148,3 +158,46 @@ class TwoPhaseFlash:
         log_yi = np.log(result.ys) if total_v > 0.0 else np.zeros(self._stream.inflow_size)
         log_xi = np.log(result.xs) if total_l > 0.0 else np.zeros(self._stream.inflow_size)
         return np.sum(vi * (log_yi + props_v.phi)) + np.sum(li * (log_xi + props_l.phi))
+
+    def _stability_analysis_suggest_two_phase(self, flash_input, last_result: RachfordRiceResult):
+        wilson_ks = self._stream.all_wilson_ks(flash_input.T, flash_input.P)
+        if last_result.phase == PhaseEnum.LIQ:
+            wi_guess = estimate_light_phase_from_wilson_ks(flash_input.zs, wilson_ks)
+            z_prop = self._stream.calc_properties(flash_input, PhaseEnum.LIQ)
+            ln_phi_z = z_prop.phi
+        else:
+            wi_guess = estimate_heavy_phase_from_wilson_ks(flash_input.zs, wilson_ks)
+            z_prop = self._stream.calc_properties(flash_input, PhaseEnum.VAP)
+            ln_phi_z = z_prop.phi
+        sa_result, _ = self._sa.compute(flash_input, wi_guess)
+        if sa_result.category == SAResultType.NEGATIVE:
+            mole_frac = sa_result.wi/np.sum(sa_result.wi)
+            wi_flash_input = FlashInput(flash_input.T, flash_input.P, mole_frac)
+            if last_result.phase == PhaseEnum.LIQ:
+                x_prop = self._stream.calc_properties(wi_flash_input, PhaseEnum.LIQ)
+                ln_phi_x = x_prop.phi
+                ks = np.exp(ln_phi_x)/np.exp(ln_phi_z)
+            else:
+                y_prop = self._stream.calc_properties(wi_flash_input, PhaseEnum.VAP)
+                ln_phi_y = y_prop.phi
+                ks = np.exp(ln_phi_z)/np.exp(ln_phi_y)
+            return True, ks
+        return False, None
+
+    def _flip_phase_if_reversed(self, flash_input: FlashInput, last_result: RachfordRiceResult):
+        if last_result.phase != PhaseEnum.VLE:
+            return
+        input_x = FlashInput(flash_input.T, flash_input.P, last_result.xs)
+        prop_x = self._stream.calc_properties(input_x, desired_phase=PhaseEnum.STABLE)
+        input_y = FlashInput(flash_input.T, flash_input.P, last_result.ys)
+        prop_y = self._stream.calc_properties(input_y, desired_phase=PhaseEnum.STABLE)
+        if prop_x.phase == PhaseEnum.VAP and prop_y.phase == PhaseEnum.LIQ:
+            save_xs = last_result.xs.copy()
+            last_result.xs = last_result.ys.copy()
+            last_result.ys = save_xs
+            last_result.beta = 1.0-last_result.beta
+
+
+
+
+

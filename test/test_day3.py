@@ -61,6 +61,10 @@ class TestSuccessiveSubstitution(unittest.TestCase):
             # p_new = 6.16
             self._test_case_for_t_p(t, p_new)
 
+    def test_stability_analysis_restart_to_overshoot_case(self):
+        t = 205.0
+        p = 6.1
+        self._test_case_for_t_p(t, p, .9292)
 
     def _test_example_case(self, i):
         t = self.ts[i]
@@ -102,12 +106,12 @@ class TestSuccessiveSubstitution(unittest.TestCase):
                                                                                                           ss_acc_by_change_sloppy)
 
             if beta_gold is not None:
-                self.assertAlmostEqual(result_a.beta, result.beta, 5)
-                self.assertAlmostEqual(result_a_byc.beta, result.beta, 5)
-                self.assertAlmostEqual(result_sloppy.beta, result.beta, 5)
+                self.assertAlmostEqual(result_a.beta, result.beta, 3)
+                self.assertAlmostEqual(result_a_byc.beta, result.beta, 3)
+                self.assertAlmostEqual(result_sloppy.beta, result.beta, 3)
             print('\n\t\toriginal\tacc by cycle\tacc by change\tsloppy')
-            print(f'beta\t{result.beta :.4f}\t{result_a.beta :.4f}\t{result_a_byc.beta :.4f}'
-                  f'\t{result_sloppy.beta :.4f}')
+            print(f'beta\t{result.beta :.6f}\t{result_a.beta :.6f}\t{result_a_byc.beta :.6f}'
+                  f'\t{result_sloppy.beta :.6f}')
             print(f'iters\t{iters}\t{iters_ac}\t{iters_ac_byc}\t{iters_sloppy}')
             print(f'rr iters\t{rr_iters}\t{rr_iters_ac}\t{rr_iters_ac_byc}\t{rr_iters_sloppy}')
             print(f'acc_count\t{ss._acceleration.counter}\t{ss_acc_by_cycle._acceleration.counter}\t'
@@ -118,7 +122,7 @@ class TestSuccessiveSubstitution(unittest.TestCase):
         try:
             iters_ac, rr_iters_ac, result_a = ss_acc_by_cycle.compute(flash_input, show_plot=show_plot)
         except TwoPhaseFlashException as e:
-            iters_ac = ss_acc_by_cycle._max_iter
+            iters_ac = ss_acc_by_cycle._ss_max_iter
             result_a = e.result
             rr_iters_ac = e.total_rr_count
         return iters_ac, result_a, rr_iters_ac

@@ -34,10 +34,10 @@ class SAResult:
 
 
 class StabilityAnalysis:
-    def __init__(self, stream: ThermclcInterface):
+    def __init__(self, stream: ThermclcInterface, ss_max_iter=1000, ss_tol=1e-7):
         self._stream = stream
-        self._max_iter = 1000
-        self._ss_tol = 1e-7
+        self._ss_max_iter = ss_max_iter
+        self._ss_tol = ss_tol
 
     def d(self, x, ln_phi_x):
         return np.log(x) + ln_phi_x
@@ -61,16 +61,18 @@ class StabilityAnalysis:
 
         def max_iter_action():
             raise SAException(f'Successive substitution on tm reached '
-                              f'max iterations {self._max_iter}')
+                              f'max iterations {self._ss_max_iter}')
 
         ss = SuccessiveSubstitutionSolver(compute_phi_k, None, compute_wi,
-                                          max_iter_action)
+                                          max_iter_action, max_iter=self._ss_max_iter,
+                                          tol=self._ss_tol)
         initial_flash_input = FlashInput(flash_input.T, flash_input.T, wi_guess)
         ss_iters, (ws, ln_ws) = ss.solve(self._stream.calc_properties(initial_flash_input, PhaseEnum.STABLE).phi,
                                          (wi_guess, np.log(wi_guess)))
+
         flash_input_w = FlashInput(flash_input.T, flash_input.P, ws)
         ln_phi_w = self._stream.calc_properties(flash_input_w, PhaseEnum.STABLE).phi
-        return SAResult(self.compute_tm(ws, ln_phi_w, di), ws)
+        return SAResult(self.compute_tm(ws, ln_phi_w, di), ws), ss_iters
 
     def compute_tm(self, wi: np.array, ln_phi_w, di):
         dw = self.d(wi, ln_phi_w)
