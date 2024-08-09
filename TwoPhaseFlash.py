@@ -38,7 +38,6 @@ class TwoPhaseFlash:
                 return 1, initial_result
         return self.solve_successive_substitution(flash_input, initial_ks, initial_result, show_plot=show_plot)
 
-
     def solve_successive_substitution(self, flash_input, initial_ks, initial_result, show_plot=False):
         t = flash_input.T
         p = flash_input.P
@@ -58,7 +57,7 @@ class TwoPhaseFlash:
             if g_diff < 0.0 or not did_acceleration_last_iter:
                 new_ks = np.exp(props_l.phi) / np.exp(props_v.phi)
                 return new_ks, SuccSubStatus.CONTINUE
-            elif abs(g_diff) < self._ss_tol*self._ss_tol:
+            elif abs(g_diff) < self._ss_tol * self._ss_tol:
                 return None, SuccSubStatus.CONVERGED
             else:
                 return None, SuccSubStatus.OVERSHOOT
@@ -89,8 +88,8 @@ class TwoPhaseFlash:
                 plt.yscale('log')
                 plt.show()
             raise TwoPhaseFlashException(f'Successive substitution solver failed to converge '
-                                                  f'at max iterations of {self._max_iter}', result=last_result,
-                                                  total_rr_count=sum(rr_counts))
+                                         f'at max iterations of {self._max_iter}', result=last_result,
+                                         total_rr_count=sum(rr_counts))
 
         self._acceleration.clear()
         ss = SuccessiveSubstitutionSolver(self._acceleration, compute_ks, converged_fun, compute_for_next_iter,
@@ -131,35 +130,14 @@ class TwoPhaseFlash:
         initial_phase = initial_result.phase
         if initial_phase not in (PhaseEnum.VAP, PhaseEnum.LIQ):
             raise TwoPhaseFlashException(f'Phase {initial_result.phase.name} '
-                                                  f'should not perform stability analysis')
+                                         f'should not perform stability analysis')
 
-        ln_phi_z = self._stream.calc_properties(flash_input, initial_phase).phi
-        di = ln_phi_z + np.log(flash_input.zs)
+
 
         ks = self._stream.all_wilson_ks(flash_input.T, flash_input.P)
         # new_ws = estimate_heavy_phase_from_wilson_ks(flash_input.zs, ks) if initial_result.phase == PhaseEnum.VAP else \
         #     estimate_light_phase_from_wilson_ks(flash_input.zs, ks)
-        new_ws = estimate_heavy_phase_from_wilson_ks_aggressive(flash_input.zs, ks, ln_phi_z)
-        new_ln_ws = np.log(new_ws)
-        new_flash_input = deepcopy(flash_input)
-        for i in range(self._max_iter):
-            new_flash_input.zs = new_ws.copy()
-            new_w_props = self._stream.calc_properties(new_flash_input, PhaseEnum.STABLE)
-            bracket_term = new_ln_ws + new_w_props.phi - di - 1.0
-            tm = 1.0 + np.sum(new_ws * bracket_term)
 
-            # check tm < 0.0
-
-            old_ln_ws = new_ln_ws.copy()
-            new_ln_ws = di - new_w_props.phi
-            new_ws = np.exp(new_ln_ws)
-
-            diff = np.abs(new_ln_ws - old_ln_ws)
-            if np.max(diff) < self._ss_tol:
-                return True
-        else:
-            raise TwoPhaseFlashException(f'Successive substitution on tm reached '
-                                                  f'max iterations {self._max_iter}')
 
     def calc_total_G(self, flash_input, result, props_l, props_v):
         total_z = np.sum(flash_input.zs)
