@@ -13,58 +13,6 @@ class SuccSubStatus(IntEnum):
     OVERSHOOT = 2
 
 
-class SuccessiveSubstitutionSolver:
-
-    def __init__(self, acceleration, compute_new_g_fun,
-                 converged_fun,
-                 compute_for_next_iter,
-                 max_iter_reached_fun, max_iter=2000, tol=1e-7):
-        self._max_iter = max_iter
-        self._ss_tol = tol
-        self._acceleration = acceleration
-        self._compute_new_g = compute_new_g_fun
-        self._converged_fun = converged_fun
-        self._compute_for_next_iter = compute_for_next_iter
-        self._max_iter_reached_fun = max_iter_reached_fun
-
-    def solve(self, initial_g, external_data):
-        """
-            solve F(g(x),x) = 0
-
-            iter K:
-            g^k = g(x^k)
-            F(g^k, x) = 0 -> x^k+1
-
-            iteratively until g not change
-            """
-
-        g_kp1 = initial_g
-        g_history = []
-        for i in range(self._max_iter):
-            g_k = g_kp1.copy()
-            g_history.append(g_k)
-
-            g_kp1, ss_status, external_data = self._compute_new_g(external_data, self._acceleration.did)
-            if ss_status == SuccSubStatus.CONVERGED:
-                break
-            elif ss_status == SuccSubStatus.OVERSHOOT:
-                g_kp1 = g_history[-2]
-            elif ss_status == SuccSubStatus.CONTINUE:
-                g_kp1 = self._acceleration.check(i, g_history, g_kp1)
-
-            g_diffs = np.abs(g_kp1 - g_k)
-            if np.max(g_diffs) < self._ss_tol:
-                if self._converged_fun:
-                    self._converged_fun()
-                break
-
-            external_data = self._compute_for_next_iter(g_kp1, external_data)
-        else:
-            if self._max_iter_reached_fun:
-                self._max_iter_reached_fun()
-        return i, external_data
-
-
 class SSAccelerationDummy:
     def check(self, current_iter, ss_var_history, new_var):
         return new_var
@@ -110,6 +58,7 @@ class SSAccelerationCriteriaByChange:
 
     def clear(self):
         self._history.clear()
+
 
 class SSAccelerationDEM:
     """
@@ -159,3 +108,56 @@ class SSAccelerationDEM:
     @property
     def counter(self):
         return self._counter
+
+
+class SuccessiveSubstitutionSolver:
+
+    def __init__(self, compute_new_g_fun,
+                 converged_fun,
+                 compute_for_next_iter,
+                 max_iter_reached_fun, max_iter=2000, tol=1e-7,
+                 acceleration=SSAccelerationDummy()):
+        self._max_iter = max_iter
+        self._ss_tol = tol
+        self._acceleration = acceleration
+        self._compute_new_g = compute_new_g_fun
+        self._converged_fun = converged_fun
+        self._compute_for_next_iter = compute_for_next_iter
+        self._max_iter_reached_fun = max_iter_reached_fun
+
+    def solve(self, initial_g, external_data):
+        """
+            solve F(g(x),x) = 0
+
+            iter K:
+            g^k = g(x^k)
+            F(g^k, x) = 0 -> x^k+1
+
+            iteratively until g not change
+            """
+
+        g_kp1 = initial_g
+        g_history = []
+        for i in range(self._max_iter):
+            g_k = g_kp1.copy()
+            g_history.append(g_k)
+
+            g_kp1, ss_status, external_data = self._compute_new_g(external_data, self._acceleration.did)
+            if ss_status == SuccSubStatus.CONVERGED:
+                break
+            elif ss_status == SuccSubStatus.OVERSHOOT:
+                g_kp1 = g_history[-2]
+            elif ss_status == SuccSubStatus.CONTINUE:
+                g_kp1 = self._acceleration.check(i, g_history, g_kp1)
+
+            g_diffs = np.abs(g_kp1 - g_k)
+            if np.max(g_diffs) < self._ss_tol:
+                if self._converged_fun:
+                    self._converged_fun()
+                break
+
+            external_data = self._compute_for_next_iter(g_kp1, external_data)
+        else:
+            if self._max_iter_reached_fun:
+                self._max_iter_reached_fun()
+        return i, external_data

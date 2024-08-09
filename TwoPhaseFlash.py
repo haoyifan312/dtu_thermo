@@ -92,8 +92,8 @@ class TwoPhaseFlash:
                                          total_rr_count=sum(rr_counts))
 
         self._acceleration.clear()
-        ss = SuccessiveSubstitutionSolver(self._acceleration, compute_ks, converged_fun, compute_for_next_iter,
-                                          max_iter_reached)
+        ss = SuccessiveSubstitutionSolver(compute_ks, converged_fun, compute_for_next_iter,
+                                          max_iter_reached, acceleration=self._acceleration)
         ss_iters, last_result = ss.solve(new_ks, last_result)
 
         return ss_iters, sum(rr_counts), last_result

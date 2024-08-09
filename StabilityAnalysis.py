@@ -63,7 +63,7 @@ class StabilityAnalysis:
             raise SAException(f'Successive substitution on tm reached '
                               f'max iterations {self._max_iter}')
 
-        ss = SuccessiveSubstitutionSolver(SSAccelerationDummy(), compute_phi_k, None, compute_wi,
+        ss = SuccessiveSubstitutionSolver(compute_phi_k, None, compute_wi,
                                           max_iter_action)
         initial_flash_input = FlashInput(flash_input.T, flash_input.T, wi_guess)
         ss_iters, (ws, ln_ws) = ss.solve(self._stream.calc_properties(initial_flash_input, PhaseEnum.STABLE).phi,
