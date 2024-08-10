@@ -17,7 +17,7 @@ class TwoPhaseFlashException(Exception):
 
 class TwoPhaseFlash:
     def __init__(self, stream: ThermclcInterface, rr_rigorous=None, rr_fast=None,
-                 acceleration=SSAccelerationDummy()):
+                 acceleration=SSAccelerationDummy(), ignore_stability_analysis=False):
         self._stream = stream
         if rr_rigorous is None:
             rr_rigorous = RachfordRiceBase(stream.inflow_size)
@@ -29,6 +29,7 @@ class TwoPhaseFlash:
         self._ss_tol = 1e-7
         self._acceleration = acceleration
         self._sa = StabilityAnalysis(self._stream, ss_max_iter=self._ss_max_iter, ss_tol=self._ss_tol)
+        self._ignore_stability_analysis = ignore_stability_analysis
 
     def compute(self, flash_input: FlashInput, initial_ks=None, show_plot=False):
         if initial_ks is None:
@@ -198,6 +199,8 @@ class TwoPhaseFlash:
             last_result.beta = 1.0-last_result.beta
 
     def _need_stability_analysis(self):
+        if self._ignore_stability_analysis:
+            return False
         return self._rr_rigous.is_stability_analysis_needed() or self._rr_rigous.is_stability_analysis_needed()
 
 

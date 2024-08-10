@@ -72,15 +72,18 @@ class FlashInput:
 
 
 class ThermclcInterface:
-    EoS = {
+    eos_code = {
         'SRK': 0,
         'PR': 1
     }
 
     def __init__(self, inflows, eos):
         self._inflows = inflows
-        self._eos = self.EoS[eos]
+        self._eos = self._get_eos_option(eos)
         self._indata()
+
+    def _get_eos_option(self, eos):
+        return self.eos_code[eos]
 
     @property
     def inflow_id(self):
@@ -109,7 +112,21 @@ class ThermclcInterface:
         return [self.compute_wilson_k(t, p, i) for i in range(self.inflow_size)]
 
 
+class ThermclcInterfaceTestModels(ThermclcInterface):
+    def _get_eos_option(self, eos: int):
+        return eos
+
+    def _indata(self):
+        th.INIT(self.inflow_size, self._eos, self.inflow_id)
+
+    def calc_properties(self, flash_input: FlashInput, _, option=5):
+        return th.FUGAC(flash_input.T, flash_input.P, flash_input.zs)
+
+
 @contextlib.contextmanager
 def init_system(inflows, eos):
-    stream = ThermclcInterface(inflows, eos)
+    if eos in ThermclcInterface.eos_code.keys():
+        stream = ThermclcInterface(inflows, eos)
+    else:
+        stream = ThermclcInterfaceTestModels(inflows, eos)
     yield stream
