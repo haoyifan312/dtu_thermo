@@ -100,7 +100,7 @@ class TwoPhaseFlash:
                                           max_iter=self._ss_max_iter, tol=self._ss_tol)
         ss_iters, last_result = ss.solve(new_ks, last_result)
 
-        if not checked_stability_analysis and last_result.phase != PhaseEnum.VLE:
+        if not checked_stability_analysis and last_result.phase != PhaseEnum.VLE and self._need_stability_analysis():
             is_two_phase, sa_ks = self._stability_analysis_suggest_two_phase(flash_input, last_result)
             if is_two_phase:
                 sa_result = self._rr_rigous.compute(sa_ks, flash_input.zs)
@@ -196,6 +196,9 @@ class TwoPhaseFlash:
             last_result.xs = last_result.ys.copy()
             last_result.ys = save_xs
             last_result.beta = 1.0-last_result.beta
+
+    def _need_stability_analysis(self):
+        return self._rr_rigous.is_stability_analysis_needed() or self._rr_rigous.is_stability_analysis_needed()
 
 
 

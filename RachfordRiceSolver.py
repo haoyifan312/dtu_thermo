@@ -122,6 +122,9 @@ class RRGSolverBase:
     def _get_beta_min_max(self):
         return 0.0, 1.0
 
+    def need_stability_analysis(self):
+        return True
+
     def fun(self, beta):
         ret = 0.0
         for zi, ki in zip(self._zs, self._ks):
@@ -191,6 +194,8 @@ class RRGSolverNegativeFlash(RRGSolverBase):
     def _get_beta_min_max(self):
         return -1.0 / (self.k_max - 1.0), 1.0 / (1.0 - self.k_min)
 
+    def need_stability_analysis(self):
+        return False
 
 class RRGSolverSloppy(RRGSolverBase):
     def _fill_result(self, beta, result):
@@ -215,6 +220,9 @@ class RachfordRiceBase:
         self._result = RachfordRiceResult()
         self._initialize_result()
         self._g_solver = g_solver
+
+    def is_stability_analysis_needed(self):
+        return self._g_solver.need_stability_analysis()
 
     @property
     def size(self):
