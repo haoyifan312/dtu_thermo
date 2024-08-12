@@ -31,11 +31,11 @@ class TestModelConsistency(unittest.TestCase):
     def test_model3(self):
         self._test_model(3, True, False)
 
-    def _test_model(self, mod, dg_dni_gold, dsumxphi_dp_gold):
+    def _test_model(self, mod, dg_dni_passed, dsumxphi_dp_passed):
         print(f"\n\nTesting model {mod}")
         with init_system(self.components, mod) as stream:
             thermo_check = ThermoModelConsistencyCheck(stream)
-            self.assertEqual(thermo_check.test_g_der_wrt_ni(self.flash_input), dg_dni_gold)
-            self.assertEqual(thermo_check.test_sum_x_phi_der_wrt_p(self.flash_input), dsumxphi_dp_gold)
+            self.assertEqual(thermo_check.test_g_der_wrt_ni(self.flash_input), dg_dni_passed)
+            self.assertEqual(thermo_check.test_sum_x_phi_der_wrt_p(self.flash_input), dsumxphi_dp_passed)
 
 
