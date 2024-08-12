@@ -32,6 +32,30 @@ class TestWilsonK(unittest.TestCase):
                 k_compare = compute_wilson_k(t, self.tc_gold[i], p, self.pc_gold[i] * 0.1013, self.omega_gold[i])
                 self.assertAlmostEqual(k, k_compare)
 
+    def test_wilson_k_derivatives(self):
+        t = 200
+        p = 5.0
+        pert = 1e-6
+        with init_system(self.components, 'SRK') as stream:
+            for i, comp in enumerate(self.components):
+                k = stream.compute_wilson_k(t, p, i)
+
+                t_new = t + pert
+                k_pert_t = stream.compute_wilson_k(t_new, p, i)
+                t_der_numerical = (k_pert_t - k)/pert
+                t_der_analytical = stream.compute_wilson_k(t, p, i, property_type=PropertyType.TEMPERATURE_DER)
+                print(f'Wilson K temperature derivatives for {comp} at {t}K and {p}MPa = {k}:')
+                print(f'analytical={t_der_analytical}\tnumerical={t_der_numerical}')
+                self. assertAlmostEqual(t_der_numerical, t_der_analytical)
+
+                p_new = p + pert
+                k_pert_p = stream.compute_wilson_k(t, p_new, i)
+                p_der_numerical = (k_pert_p - k)/pert
+                p_der_analytical = stream.compute_wilson_k(t, p, i, property_type=PropertyType.PRESSURE_DER)
+                print(f'Wilson K pressure derivatives for {comp} at {t}K and {p}MPa = {k}:')
+                print(f'analytical={p_der_analytical}\tnumerical={p_der_numerical}')
+                self. assertAlmostEqual(p_der_numerical, p_der_analytical)
+
 
 class TestRachfordRiceSolver(unittest.TestCase):
     components = list(example_7_component.keys())

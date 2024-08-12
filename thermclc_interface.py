@@ -17,10 +17,26 @@ example_7_component = {
 }
 
 
+def wilson_k_exp_term(t_k, tc_k, omega):
+    omega_term = 5.373 * (1.0 + omega)
+    exp_term = np.exp((1.0 - tc_k / t_k) * omega_term)
+    return exp_term
+
+
 def compute_wilson_k(t_k, tc_k, p_mpa, pc_mpa, omega):
     pr = pc_mpa / p_mpa
-    tr = tc_k / t_k
-    return pr * np.exp(5.373 * (1.0 + omega) * (1.0 - tr))
+    return pr * wilson_k_exp_term(t_k, tc_k, omega)
+
+
+def compute_wilson_k_der_t(t_k, tc_k, p_mpa, pc_mpa, omega):
+    omega_term = 5.373 * (1.0 + omega)
+    exp_term = wilson_k_exp_term(t_k, tc_k, omega)
+    return pc_mpa * tc_k * omega_term * exp_term / p_mpa / t_k / t_k
+
+
+def compute_wilson_k_der_p(t_k, tc_k, p_mpa, pc_mpa, omega):
+    exp_term = wilson_k_exp_term(t_k, tc_k, omega)
+    return - pc_mpa * exp_term / p_mpa / p_mpa
 
 
 def estimate_light_phase_from_wilson_ks(zs, ks):
@@ -52,6 +68,13 @@ class PhaseEnum(IntEnum):
             -1: PhaseEnum.VAP,
         }
         return ret[v]
+
+
+class PropertyType(IntEnum):
+    PROPERTY = 0
+    TEMPERATURE_DER = 1
+    PRESSURE_DER = 2
+    COMPOSITION_DER = 3
 
 
 @dataclasses.dataclass
@@ -104,12 +127,19 @@ class ThermclcInterface:
     def get_critical_properties(self, i: int):
         return th.GETCRIT(i)
 
-    def compute_wilson_k(self, t, p, i):
-        tc, pc, omega = self.get_critical_properties(i)
-        return compute_wilson_k(t, tc, p, pc, omega)
+    def compute_wilson_k(self, t, p, i, property_type=PropertyType.PROPERTY):
+        fun = {
+            PropertyType.PROPERTY: compute_wilson_k,
+            PropertyType.TEMPERATURE_DER: compute_wilson_k_der_t,
+            PropertyType.PRESSURE_DER: compute_wilson_k_der_p
+        }
 
-    def all_wilson_ks(self, t, p):
-        return [self.compute_wilson_k(t, p, i) for i in range(self.inflow_size)]
+        tc, pc, omega = self.get_critical_properties(i)
+        return fun[property_type](t, tc, p, pc, omega)
+
+    def all_wilson_ks(self, t, p, property_type=PropertyType.PROPERTY):
+        return [self.compute_wilson_k(t, p, i, property_type=property_type)
+                for i in range(self.inflow_size)]
 
 
 class ThermclcInterfaceTestModels(ThermclcInterface):
