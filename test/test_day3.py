@@ -67,8 +67,8 @@ class TestSuccessiveSubstitution(unittest.TestCase):
         self._test_case_for_t_p(t, p, .9292)
 
     def test_random_case(self):
-        t = 205.0
-        p = 6.124
+        t = 200.0
+        p = 0.529808671350
         self._test_case_for_t_p(t, p)
 
     def _test_example_case(self, i):

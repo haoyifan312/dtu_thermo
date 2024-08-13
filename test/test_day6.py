@@ -126,7 +126,8 @@ class TestSaturationPointSuccessiveSubstitution(unittest.TestCase):
 
     def test_constructuro(self):
         with init_system(self.components, 'SRK') as stream:
-            _ = SaturationPointBySuccessiveSubstitution.create_saturation_pt_by_successive_substitution(stream, SaturationType.BUBBLE_POINT)
+            _ = SaturationPointBySuccessiveSubstitution.create_saturation_pt_by_successive_substitution(stream,
+                                                                                                        SaturationType.BUBBLE_POINT)
             _ = SaturationPointBySuccessiveSubstitution.create_saturation_pt_by_successive_substitution(stream,
                                                                                                         SaturationType.DEW_POINT)
 
@@ -136,11 +137,10 @@ class TestSaturationPointSuccessiveSubstitution(unittest.TestCase):
                                                                                                              SaturationType.BUBBLE_POINT)
             t = 200
             p = 5.0
-            tp, iters = solver.solve(t, p, self.zs, 'P')
+            tp, iters = solver.solve(t, p, self.zs, 'P', damping_factor=0.5)
             bubble_p = tp[1]
             print(f'Bubble point pressure at T={t} is {bubble_p} using {iters} iterations')
-            # self.assertAlmostEqual(bubble_p, 0.3157815061017666)
-
+            self.assertAlmostEqual(bubble_p, 5.504670651878922)
 
     def test_bubble_point_t(self):
         with init_system(self.components, 'SRK') as stream:
@@ -151,6 +151,7 @@ class TestSaturationPointSuccessiveSubstitution(unittest.TestCase):
             tp, iters = solver.solve(t, p, self.zs, 'T')
             bubble_t = tp[0]
             print(f'Bubble point temperature at P={p} is {bubble_t} using {iters} iterations')
+            self.assertAlmostEqual(bubble_t, 195.8022784575512)
 
     def test_dew_point_p(self):
         with init_system(self.components, 'SRK') as stream:
@@ -158,6 +159,18 @@ class TestSaturationPointSuccessiveSubstitution(unittest.TestCase):
                                                                                                              SaturationType.DEW_POINT)
             t = 200
             p = 5.0
-            tp, iters = solver.solve(t, p, self.zs, 'P')
+            tp, iters = solver.solve(t, p, self.zs, 'P', damping_factor=0.5)
             bubble_p = tp[1]
             print(f'Dew point pressure at T={t} is {bubble_p} using {iters} iterations')
+            self.assertAlmostEqual(bubble_p, 0.02235239096533868)
+
+    def test_dew_point_t(self):
+        with init_system(self.components, 'SRK') as stream:
+            solver = SaturationPointBySuccessiveSubstitution.create_saturation_pt_by_successive_substitution(stream,
+                                                                                                             SaturationType.DEW_POINT)
+            t = 200
+            p = 5.0
+            tp, iters = solver.solve(t, p, self.zs, 'T', damping_factor=0.5)
+            bubble_t = tp[0]
+            print(f'Dew point pressure at T={t} is {bubble_t} using {iters} iterations')
+            self.assertAlmostEqual(bubble_t, 259.18159068192284)

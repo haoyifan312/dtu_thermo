@@ -186,7 +186,7 @@ class SaturationPointBySuccessiveSubstitution:
         self._max_iter = max_iter
         self._tol = tol
 
-    def solve(self, t, p, zi: np.array, free_var: str):
+    def solve(self, t, p, zi: np.array, free_var: str, damping_factor=1.0):
         initial_tp, initial_ks, _ = self._initialization_solver.calculate_saturation_condition(zi, t, p, free_var)
         rr_result = self._rr.compute(initial_ks, zi)
         tp = initial_tp
@@ -207,7 +207,7 @@ class SaturationPointBySuccessiveSubstitution:
                 ln_phi_der = ln_k_props.dphi_dp
             f_der = self._der_eqn(zi, ki, ln_phi_der)
             newton_step = - f/f_der
-            tp[free_var_index] += newton_step
+            tp[free_var_index] += newton_step*damping_factor
             self._set_result_fun(rr_result, zi, ki)
         else:
             raise SaturationPointException(f'Saturation point did not converge in {i} iterations')
