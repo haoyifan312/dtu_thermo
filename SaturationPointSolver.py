@@ -1,5 +1,6 @@
 from enum import IntEnum
 import numpy as np
+import matplotlib.pyplot as plt
 
 from RachfordRiceSolver import RachfordRiceBase, RachfordRiceSolverOption, RachfordRiceResult
 from thermclc_interface import ThermclcInterface, PropertyType, FlashInput, PhaseEnum
@@ -186,7 +187,7 @@ class SaturationPointBySuccessiveSubstitution:
         self._max_iter = max_iter
         self._tol = tol
 
-    def solve(self, t, p, zi: np.array, free_var: str, damping_factor=1.0):
+    def solve(self, t, p, zi: np.array, free_var: str, damping_factor=1.0, plot_t_vs_k6=None):
         initial_tp, initial_ks, _ = self._initialization_solver.calculate_saturation_condition(zi, t, p, free_var)
         rr_result = self._rr.compute(initial_ks, zi)
         tp = initial_tp
@@ -194,12 +195,19 @@ class SaturationPointBySuccessiveSubstitution:
             free_var_index = 0
         elif free_var == 'P':
             free_var_index = 1
+
+        free_var_history = []
+        k_history = []
         for i in range(self._max_iter):
+            free_var_history.append(tp[free_var_index])
             ln_k_props = self._ln_k_fun(self._stream, *tp, zi, rr_result)
             ln_k = ln_k_props.phi   # lnK = ln_phi_l - ln_phi_v
             ki = np.exp(ln_k)
+            k_history.append(ki)
             f = self._gov_eqn(zi, ki)
             if abs(f) < self._tol:
+                if plot_t_vs_k6 is not None:
+                    self._plot_t_vs_k6(free_var_history, k_history, plot_t_vs_k6)
                 return tp, i
             if free_var == 'T':
                 ln_phi_der = ln_k_props.dphi_dt
@@ -226,3 +234,16 @@ class SaturationPointBySuccessiveSubstitution:
                                                            dew_point_set_result,
                                                            create_saturation_point_solver(stream, flash_type,
                                                                                           'Wilson'))
+
+    def _plot_t_vs_k6(self, t_history, k_history, plot_file_name):
+        t_diff_history = [abs(t - t_history[-1]) for t in t_history]
+        t_diff_history.pop(-1)
+        k_diff_history = [abs(k[6] - k_history[-1][6]) for k in k_history]
+        k_diff_history.pop(-1)
+
+        x = [i for i, _ in enumerate(t_diff_history)]
+        plt.plot(x, t_diff_history, label='T')
+        plt.plot(x, k_diff_history, label='k6')
+        plt.legend()
+        plt.yscale('log')
+        plt.savefig(plot_file_name)
