@@ -208,7 +208,7 @@ class SaturationPointBySuccessiveSubstitution:
             if abs(f) < self._tol:
                 if plot_t_vs_k6 is not None:
                     self._plot_t_vs_k6(free_var_history, k_history, plot_t_vs_k6)
-                return tp, i
+                return tp, ki, i
             if free_var == 'T':
                 ln_phi_der = ln_k_props.dphi_dt
             elif free_var == 'P':
