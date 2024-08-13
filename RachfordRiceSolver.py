@@ -18,6 +18,10 @@ class RachfordRiceResult:
     betas: List = dataclasses.field(default_factory=list)
 
     @property
+    def ks(self):
+        return self.ys/self.xs
+
+    @property
     def rr_iters(self):
         return len(self.betas)
 

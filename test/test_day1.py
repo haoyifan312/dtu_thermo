@@ -1,4 +1,7 @@
 import unittest
+
+import numpy as np
+
 from thermclc_interface import *
 
 
@@ -42,3 +45,22 @@ class TestThermoFunctions(unittest.TestCase):
                     self.assertEqual(result_stable.phase, PhaseEnum.VAP)
                     self.assertTrue(np.allclose(result_l.phi, result_v.phi))
                     self.assertTrue(np.allclose(result_l.phi, result_stable.phi))
+
+    def test_pressure_derivative(self):
+        p_mpa = 2
+        t = 160.0
+        inflow_moles = np.array(list(example_7_component.values()))
+        with init_system(example_7_component.keys(), 'SRK') as stream:
+            flash_input = FlashInput(t, p_mpa, inflow_moles)
+            props = stream.calc_properties(flash_input, desired_phase=PhaseEnum.LIQ)
+
+            pert = 1e-6
+            new_p = p_mpa + pert
+            new_prop = stream.calc_properties(FlashInput(t, new_p, inflow_moles), desired_phase=PhaseEnum.LIQ)
+
+            numerical_der = (new_prop.phi - props.phi)/pert
+            analytical_der = props.dphi_dp
+            print(f'numerical der={numerical_der}; analytical der={analytical_der}')
+            self.assertTrue(np.allclose(numerical_der, analytical_der))
+
+

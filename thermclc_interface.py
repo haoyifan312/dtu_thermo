@@ -86,6 +86,13 @@ class ThermoResults:
     aux: np.ndarray
     phase: PhaseEnum
 
+    def __sub__(self, other):
+        return ThermoResults(self.phi - other.phi,
+                             self.dphi_dt - other.dphi_dt,
+                             self.dphi_dp - other.dphi_dp,
+                             self.dphi_dx - other.dphi_dx,
+                             self.aux - other.aux,
+                             self.phase)
 
 @dataclasses.dataclass
 class FlashInput:
