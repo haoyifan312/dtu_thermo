@@ -7,7 +7,13 @@ from thermclc_interface import ThermclcInterface, PropertyType, FlashInput, Phas
 
 
 class SaturationPointException(Exception):
-    pass
+    def __init__(self, *args, **kwargs):
+        self.tp_ki = kwargs.get('tp_ki')
+        try:
+            kwargs.pop('tp_ki')
+        except KeyError:
+            pass
+        super().__init__(*args, **kwargs)
 
 
 class SaturationType(IntEnum):
@@ -194,8 +200,11 @@ class SaturationPointBySuccessiveSubstitution:
         self._max_iter = max_iter
         self._tol = tol
 
-    def solve(self, t, p, zi: np.array, free_var: str, damping_factor=1.0, plot_t_vs_k6=None):
-        initial_tp, initial_ks, _ = self._initialization_solver.calculate_saturation_condition(zi, t, p, free_var)
+    def solve(self, t, p, zi: np.array, free_var: str, initialization_data=None, damping_factor=1.0, plot_t_vs_k6=None):
+        if initialization_data is None:
+            initial_tp, initial_ks, _ = self._initialization_solver.calculate_saturation_condition(zi, t, p, free_var)
+        else:
+            initial_tp, initial_ks = initialization_data
         rr_result = self._rr.compute(initial_ks, zi)
         tp = initial_tp
         if free_var == 'T':
@@ -225,22 +234,25 @@ class SaturationPointBySuccessiveSubstitution:
             tp[free_var_index] += newton_step*damping_factor
             self._set_result_fun(rr_result, zi, ki)
         else:
-            raise SaturationPointException(f'Saturation point did not converge in {i} iterations')
+            raise SaturationPointException(f'Saturation point did not converge in {i} iterations', tp_ki=(tp, ki))
 
     @staticmethod
-    def create_saturation_pt_by_successive_substitution(stream: ThermclcInterface, flash_type: SaturationType):
+    def create_saturation_pt_by_successive_substitution(stream: ThermclcInterface, flash_type: SaturationType,
+                                                        max_iter=1000):
         if flash_type == SaturationType.BUBBLE_POINT:
             return SaturationPointBySuccessiveSubstitution(stream, bubble_point_fun, bubble_point_der,
                                                            bubble_point_ln_k_props_from_ln_phi_diff,
                                                            bubble_point_set_result,
                                                            create_saturation_point_solver(stream, flash_type,
-                                                                                          'Wilson'))
+                                                                                          'Wilson'),
+                                                           max_iter=max_iter)
         elif flash_type == SaturationType.DEW_POINT:
             return SaturationPointBySuccessiveSubstitution(stream, dew_point_fun, dew_point_der,
                                                            dew_point_ln_k_props_from_ln_phi_diff,
                                                            dew_point_set_result,
                                                            create_saturation_point_solver(stream, flash_type,
-                                                                                          'Wilson'))
+                                                                                          'Wilson'),
+                                                           max_iter=max_iter)
 
     def _plot_t_vs_k6(self, t_history, k_history, plot_file_name):
         t_diff_history = [abs(t - t_history[-1]) for t in t_history]
