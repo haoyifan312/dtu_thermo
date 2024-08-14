@@ -264,12 +264,12 @@ class TestEquilEqns(unittest.TestCase):
             sen = [(var, value) for var, value in zip(var_names, sensitivity)]
             pass
 
-    def _test_solve_phase_envolope_manually(self):
+    def test_solve_phase_envolope_manually(self):
         with init_system(self.components, 'SRK') as stream:
-            equil_eqns = EquilEqnsForSaturationPoint(stream, 1.0, self.zs)
-            t = 250
+            equil_eqns = EquilEqnsForSaturationPoint(stream, 0.0, self.zs)
+            t = 150
             p = 0.5
-            equil_eqns.solve_phase_envolope(t, p, starting_spec='lnP', manually=True)
+            equil_eqns.solve_phase_envolope(t, p, starting_spec='T', manually=True)
 
     def test_solve_dew(self):
         with init_system(self.components, 'SRK') as stream:

@@ -16,6 +16,8 @@ example_7_component = {
     'N2': 0.014
 }
 
+class ThermoInterfaceException(Exception):
+    pass
 
 def wilson_k_exp_term(t_k, tc_k, omega):
     omega_term = 5.373 * (1.0 + omega)
@@ -127,8 +129,18 @@ class ThermclcInterface:
         th.INDATA(self.inflow_size, self._eos, self.inflow_id)
 
     def calc_properties(self, flash_input: FlashInput, desired_phase: PhaseEnum, option=5):
-        (FUG, FUGT, FUGP, FUGX, AUX, FTYPE) = th.THERMO(flash_input.T, flash_input.P, flash_input.zs, desired_phase,
-                                                        option)
+        if np.inf in flash_input.zs:
+            raise  ThermoInterfaceException(f'inf in mole fraction')
+        if np.sum(flash_input.zs) <= 0.0:
+            raise ThermoInterfaceException(f'Total mole fraction is zero')
+        if np.min(flash_input.zs) < 0.0:
+            raise ThermoInterfaceException(f'Mole fraction less than 0')
+
+        try:
+            (FUG, FUGT, FUGP, FUGX, AUX, FTYPE) = th.THERMO(flash_input.T, flash_input.P, flash_input.zs, desired_phase,
+                                                            option)
+        except ValueError as e:
+            raise e
         return ThermoResults(FUG, FUGT, FUGP, FUGX, AUX, PhaseEnum.from_value(FTYPE))
 
     def get_critical_properties(self, i: int):

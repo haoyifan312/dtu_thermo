@@ -359,6 +359,7 @@ def THERMO(T, P, ZFEED, MT, ICON):
     global NC
 #
     X = np.zeros(NC)
+    # print(ZFEED)
     X[0:NC] = ZFEED[0:NC]/sum(ZFEED[0:NC])
     (FUG, FUGT, FUGP, FUGX, AUX, FTYPE) = CUBGEN(ICON, MT, T, P, X)
     return(FUG, FUGT, FUGP, FUGX, AUX, FTYPE)

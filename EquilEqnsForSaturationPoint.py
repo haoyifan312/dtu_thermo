@@ -165,7 +165,12 @@ class EquilEqnsForSaturationPoint:
 
         history = []
         del_x_norm = 1
+        last_delx = np.zeros(self.system_size)
         for i in range(self._max_iter):
+            if i == 50:
+                damping_factor *= 0.5
+            elif i == 100:
+                damping_factor *= 0.5
             self._update_dependent_variables()
             self._update_residuals()
             f_norm = np.linalg.norm(self._residual_values)
@@ -177,9 +182,16 @@ class EquilEqnsForSaturationPoint:
             jac_inverse = self._compute_jac_inverse()
             del_x = np.matmul(-jac_inverse, self._residual_values)
             del_x_norm = np.linalg.norm(del_x)
-            effect_del_x = del_x*damping_factor
+            effect_del_x = del_x
             effect_del_x = self._get_effective_del_x_to_avoid_overshooting(effect_del_x)
+            effect_del_x = self._get_effective_del_x_to_avoid_bounding(effect_del_x)
+            effect_del_x = effect_del_x*damping_factor
+            if np.max(np.abs(last_delx + effect_del_x)) < 0.2: # bouncing
+                effect_del_x *= 0.5
+            if i > 10 and np.linalg.norm((effect_del_x)) < self._tol:
+                raise EquilEqnsForSaturationPointException(f'newton step is stuck at iter {i} with fnorm={f_norm}')
             self._independent_var_values += effect_del_x
+            last_delx = effect_del_x.copy()
         else:
             raise EquilEqnsForSaturationPointException(f'Newton solver did not converge in {i} iterations')
 
@@ -192,9 +204,13 @@ class EquilEqnsForSaturationPoint:
 
     def _get_effective_del_x_to_avoid_overshooting(self, effect_del_x):
         factor = 1.0
-        for i, (each_del_x, each_current_x) in enumerate(zip(effect_del_x[-2:], self._independent_var_values[-2:])):
-            ff = 0.5
-            small_current_x = ff*each_current_x
+        last_two_index = list(range(self.system_size-2, self.system_size))
+        for i, (each_del_x, each_current_x) in enumerate(zip(effect_del_x, self._independent_var_values)):
+            ff = 0.1
+            if i in last_two_index:
+                small_current_x = ff*each_current_x
+            else:
+                small_current_x = 10.0
             if abs(each_del_x*factor) > abs(small_current_x):
                 factor = abs(small_current_x/each_del_x)
         return factor*effect_del_x
@@ -208,25 +224,42 @@ class EquilEqnsForSaturationPoint:
 
     def solve_phase_envolope(self, t, p, starting_spec='T', manually=False):
         self._create_trace_for_input()
-        # self._setup_first_pt_initial_guess_from_successive_substitution(t, p, starting_spec)
-        # self._set_spec_for_first_point(p, starting_spec, t)
+        self._setup_first_pt_initial_guess_from_successive_substitution(t, p, starting_spec)
+        self._set_spec_for_first_point(p, starting_spec, t)
 
         _ = self.solve()
         sensitivity = self.print_var_and_sensitivity()
 
         t_history = []
         p_history = []
+        value_history = []
         while True:
             self._plot_tp(p_history, t_history)
+            value_history.append(self._independent_var_values.copy())
             if manually:
                 input_text = input()
                 self._trace_input(input_text)
-                var_name, value = input_text.split((' '))
-                value = float(value)
-            self.set_spec(var_name, value)
-            self._update_x_new_from_senstivity(var_name, value, sensitivity)
-            self.solve()
+                if input_text == 'reset':
+                    self._reset_to_old_var_values(value_history[-2])
+                else:
+                    var_name, value = input_text.split((' '))
+                    value = float(value)
+                    try:
+                        self.set_spec(var_name, value)
+                    except KeyError as e:
+                        print(f'{var_name} is not supported')
+                        pass
+                    self._update_x_new_from_senstivity(var_name, value, sensitivity)
+            try:
+                self.solve(damping_factor=0.5)
+            except EquilEqnsForSaturationPointException as e:
+                print(e)
+                self._reset_to_old_var_values(value_history[-1])
             sensitivity = self.print_var_and_sensitivity()
+
+    def _reset_to_old_var_values(self, old_values):
+        print('reset to previous point')
+        self._independent_var_values = old_values
 
     def _set_spec_for_first_point(self, p, starting_spec, t):
         if starting_spec == 'T':
@@ -236,7 +269,7 @@ class EquilEqnsForSaturationPoint:
         self.set_spec(starting_spec, spec_value)
 
     def _setup_first_pt_initial_guess_from_successive_substitution(self, t, p, spec):
-        tp, ki = self._solve_by_successive_substitution(t, p, spec)
+        tp, ki = self._solve_by_successive_substitution(t, p, spec, max_iter=100)
         if self._is_trivial_solution(ki):
             tp, ki = self._solve_from_wilson(t, p)
 
@@ -244,7 +277,7 @@ class EquilEqnsForSaturationPoint:
         ln_ki = np.log(ki)
         self.setup_independent_vars_initial_values(np.array([*ln_ki, *tp]))
 
-    def _solve_by_successive_substitution(self, t, p, spec):
+    def _solve_by_successive_substitution(self, t, p, spec, initialization_data=None, max_iter=10):
         free_var = {
             'T': 'P',
             'P': 'T'
@@ -253,24 +286,22 @@ class EquilEqnsForSaturationPoint:
             free_var_name = free_var[spec]
         except KeyError:
             free_var_name = 'P'
-        solver = self._create_successive_substitution_solver()
-        current_tp = [self.t, self.p]
-        current_ks = np.exp(self.lnKi)
+        solver = self._create_successive_substitution_solver(max_iter=max_iter)
         try:
-            tp, ki, _ = solver.solve(t, p, self.zi, free_var_name, initialization_data=(current_tp, current_ks),
+            tp, ki, _ = solver.solve(t, p, self.zi, free_var_name, initialization_data=initialization_data,
                                      damping_factor=0.5)
         except SaturationPointException as e:
             tp, ki = e.tp_ki
         return tp, ki
 
-    def _create_successive_substitution_solver(self):
+    def _create_successive_substitution_solver(self, max_iter=10):
         if self.beta == 0.0:
             sat_type = SaturationType.BUBBLE_POINT
         elif self.beta == 1.0:
             sat_type = SaturationType.DEW_POINT
         solver = SaturationPointBySuccessiveSubstitution.create_saturation_pt_by_successive_substitution(self._stream,
                                                                                                          sat_type,
-                                                                                                         max_iter=10)
+                                                                                                         max_iter=max_iter)
         return solver
 
     def _plot_tp(self, p_history, t_history):
@@ -281,12 +312,14 @@ class EquilEqnsForSaturationPoint:
         plt.xlabel('T (K)')
         plt.savefig('phase_envelope.png')
 
-    def _solve_from_wilson(self, t, p):
+    def _solve_from_wilson(self, t, p, free_var='P'):
         wilson_solver = create_saturation_point_solver(self._stream, SaturationType.from_beta(self.beta), 'Wilson')
-        tp, ki, p_iters = wilson_solver.calculate_saturation_condition(self.zi, t, p, 'P')
+        tp, ki, p_iters = wilson_solver.calculate_saturation_condition(self.zi, t, p, free_var)
         return tp, ki
 
     def print_var_and_sensitivity(self):
+        self._update_dependent_variables()
+        self._update_jacobian()
         sensitivity = self.compute_current_sensitivity()
         print('Variables and sensitivity')
         for var_name, var_value, each_sensitivity in zip(self.independent_vars,
@@ -298,7 +331,9 @@ class EquilEqnsForSaturationPoint:
     def _update_x_new_from_senstivity(self, var_name, value, sensitivity):
         var_id = self.independent_var_map[var_name]
         delta_s = value - self._independent_var_values[var_id]
-        x_new = self._independent_var_values + sensitivity*delta_s
+        factor = sensitivity[var_id]
+        normalized_sensitivity = sensitivity/factor
+        x_new = self._independent_var_values + normalized_sensitivity*delta_s
         self._independent_var_values = x_new
 
     def _create_trace_for_input(self):
@@ -311,11 +346,27 @@ class EquilEqnsForSaturationPoint:
 
     def _solve_x_new_using_successive_substitution(self):
         spec_var = self.independent_vars[self.spec_var_id]
-        tp, ki = self._solve_by_successive_substitution(self.t, self.p, spec_var)
-        if not self._is_trivial_solution(ki):
+        current_tp = [self.t, self.p]
+        current_ks = np.exp(self.lnKi)
+        tp, ki = self._solve_by_successive_substitution(self.t, self.p, spec_var,
+                                                        initialization_data=(current_tp, current_ks))
+        # if self._is_trivial_solution(ki):
+        #     tp, ki = self._solve_from_wilson(self.t, self.p, 'T' if spec_var == 'P' else 'P')
+
+        if not self._is_trivial_solution(np.array(ki)):
             self.setup_independent_vars_initial_values(np.array([*np.log(ki), *tp]))
 
     def _is_trivial_solution(self, ki):
         if np.average(np.abs(ki-1)) < 0.05:
             return True
+
+    def _get_effective_del_x_to_avoid_bounding(self, effect_del_x):
+        factor = 1.0
+        while True:
+            next_values = self._independent_var_values + effect_del_x*factor
+            if next_values[-1] <= 0.0 or next_values[-2] <= 0.0:
+                factor *= 0.5
+            else:
+                break
+        return factor*effect_del_x
 

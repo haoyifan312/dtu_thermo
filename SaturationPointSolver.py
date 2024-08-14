@@ -50,14 +50,14 @@ def dew_point_set_result(rr_result: RachfordRiceResult, zi, ki):
     rr_result.xs = zi/ki
 
 def bubble_point_ln_k_props_from_ln_phi_diff(stream: ThermclcInterface, t, p, zi: np.array, rr_result: RachfordRiceResult):
-    yi = rr_result.ys
+    yi = rr_result.ys_or_zs
     ln_phi_l_props = stream.calc_properties(FlashInput(t, p, zi), PhaseEnum.LIQ)
     ln_phi_v_props = stream.calc_properties(FlashInput(t, p, yi), PhaseEnum.VAP)
     return ln_phi_l_props - ln_phi_v_props
 
 
 def dew_point_ln_k_props_from_ln_phi_diff(stream: ThermclcInterface, t, p, zi: np.array, rr_result: RachfordRiceResult):
-    xi = rr_result.xs
+    xi = rr_result.xs_or_zs
     ln_phi_l_props = stream.calc_properties(FlashInput(t, p, xi), PhaseEnum.LIQ)
     ln_phi_v_props = stream.calc_properties(FlashInput(t, p, zi), PhaseEnum.VAP)
     return ln_phi_l_props - ln_phi_v_props
