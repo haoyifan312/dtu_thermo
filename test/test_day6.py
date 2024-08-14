@@ -214,14 +214,106 @@ class TestEquilEqns(unittest.TestCase):
             vars = np.zeros(stream.inflow_size+2)
             ln_ki = np.log(ki)
             vars[:-2] = ln_ki
-            vars[-2:] = tp
+            vars[-2:] = np.log(tp)
             equil_eqns.setup_independent_vars_initial_values(vars)
-            equil_eqns.set_spec('P', 5.0)
+            equil_eqns.set_spec('lnP', np.log(5.0))
             equil_eqns._update_xi_yi()
             equil_eqns._update_phi()
             equil_eqns._update_residuals()
             print(equil_eqns._residual_values)
             self.assertTrue(np.allclose(equil_eqns._residual_values, np.zeros(equil_eqns.system_size), atol=2e-3))
 
+    def test_solve(self):
+        with init_system(self.components, 'SRK') as stream:
+            solver = create_saturation_point_solver(stream, SaturationType.BUBBLE_POINT, 'Wilson')
+            t = 150
+            p = 0.01
+            bubble_tp, ki, p_iters = solver.calculate_saturation_condition(self.zs, t, p, 'P')
+            ln_ki = np.log(ki)
+            initial_vars = np.array([*ln_ki, np.log(t), np.log(p)])
 
+            equil_eqns = EquilEqnsForSaturationPoint(stream, 0.0, self.zs)
+            equil_eqns.setup_independent_vars_initial_values(initial_vars)
+            equil_eqns.set_spec('lnT', np.log(100.0))
+            tp_newton, final_ki, iters = equil_eqns.solve()
+            final_t, final_p = tp_newton
+            print(f'Bubble point pressure for T={t} is {final_p}, used {iters} iterations')
+            self.assertAlmostEqual(final_p, 0.05089767403032754)
+
+    def test_solve2(self):
+        with init_system(self.components, 'SRK') as stream:
+            solver = create_saturation_point_solver(stream, SaturationType.BUBBLE_POINT, 'Wilson')
+
+            t = 150
+            p = 0.5
+            bubble_tp, ki, p_iters = solver.calculate_saturation_condition(self.zs, t, p, 'P')
+            ln_ki = np.log(ki)
+            lntp = np.log(bubble_tp)
+            initial_vars = np.array([*ln_ki, *lntp])
+
+            equil_eqns = EquilEqnsForSaturationPoint(stream, 0.0, self.zs)
+            equil_eqns.setup_independent_vars_initial_values(initial_vars)
+            equil_eqns.set_spec('lnT', np.log(150.0))
+            tp_newton, final_ki, iters = equil_eqns.solve()
+            final_t, final_p = tp_newton
+            print(f'Bubble point pressure for T={t} is {final_p}, used {iters} iterations')
+            self.assertAlmostEqual(final_p, 1.109529499491139)
+
+
+    def test_solve_dew(self):
+        with init_system(self.components, 'SRK') as stream:
+            solver = create_saturation_point_solver(stream, SaturationType.DEW_POINT, 'Wilson')
+
+            t = 250
+            p = 9
+            bubble_tp, ki, p_iters = solver.calculate_saturation_condition(self.zs, t, p, 'P')
+            ln_ki = np.log(ki)
+            lntp = np.log(bubble_tp)
+            initial_vars = np.array([*ln_ki, *lntp])
+
+            equil_eqns = EquilEqnsForSaturationPoint(stream, 1.0, self.zs)
+            equil_eqns.setup_independent_vars_initial_values(initial_vars)
+            equil_eqns.set_spec('lnT', np.log(t))
+            tp_newton, final_ki, iters = equil_eqns.solve()
+            final_t, final_p = tp_newton
+            print(f'Dew point pressure for T={t} is {final_p}, used {iters} iterations')
+            self.assertAlmostEqual(final_p, 1.125205365275533)
+
+    def test_jacobian(self):
+        with init_system(self.components, 'SRK') as stream:
+            solver = create_saturation_point_solver(stream, SaturationType.BUBBLE_POINT, 'Wilson')
+            t = 150
+            p = 0.01
+            bubble_tp, ki, p_iters = solver.calculate_saturation_condition(self.zs, t, p, 'P')
+            ln_ki = np.log(ki)
+            initial_vars = np.array([*ln_ki, np.log(t), np.log(p)])
+
+            equil_eqns = EquilEqnsForSaturationPoint(stream, 0.0, self.zs)
+            equil_eqns.setup_independent_vars_initial_values(initial_vars)
+            equil_eqns.set_spec('lnT', np.log(t))
+
+            equil_eqns._update_dependent_variables()
+            equil_eqns._update_residuals()
+            equil_eqns._update_jacobian()
+
+            jac_analytical = equil_eqns._jac.copy()
+
+            jac_numerical = np.zeros((equil_eqns.system_size, equil_eqns.system_size))
+            residuals_old = equil_eqns._residual_values.copy()
+            var_old = equil_eqns._independent_var_values.copy()
+            pert = 1e-6
+            for i in range(equil_eqns.system_size):
+                pert_new = pert
+                if i == 8:
+                    pert_new = pert/10
+                equil_eqns._independent_var_values = var_old.copy()
+                equil_eqns._independent_var_values[i] += pert_new
+                equil_eqns._update_dependent_variables()
+                equil_eqns._update_residuals()
+                jac_numerical[:, i] = (equil_eqns._residual_values - residuals_old)/pert_new
+                if not np.allclose(jac_analytical[:, i], jac_numerical[:, i], atol=1e-5):
+                    print(i)
+                    print(np.abs(jac_analytical[:, i] - jac_numerical[:, i]))
+                self.assertTrue(np.allclose(jac_analytical[:, i], jac_numerical[:, i], atol=1e-5))
+        pass
 
