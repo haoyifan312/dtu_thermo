@@ -1,5 +1,6 @@
 import numpy as np
 
+from SaturationPointSolver import SaturationType, create_saturation_point_solver
 from thermclc_interface import ThermclcInterface, FlashInput, PhaseEnum
 
 
@@ -9,7 +10,7 @@ class EquilEqnsForSaturationPointException(Exception):
 
 class EquilEqnsForSaturationPoint:
     def __init__(self, stream: ThermclcInterface, beta: float, zi,
-                 max_iter=1000, tol=1e-7):
+                 max_iter=1000, tol=1e-5):
         self._stream = stream
         self.beta = beta
         self.zi = zi
@@ -161,6 +162,7 @@ class EquilEqnsForSaturationPoint:
             f_norm = np.linalg.norm(self._residual_values)
             history.append((f_norm, self._independent_var_values.copy()))
             if f_norm < self._tol:
+                print(f'Newton solver for saturation point converged in {i} iterations')
                 return (self.t, self.p), self.ln_k_s, i
             self._update_jacobian()
             jac_inverse = self._compute_jac_inverse()
@@ -188,3 +190,50 @@ class EquilEqnsForSaturationPoint:
             if abs(each_del_x*factor) > abs(small_current_x):
                 factor = abs(small_current_x/each_del_x)
         return factor*effect_del_x
+
+    def compute_current_sensitivity(self):
+        df_ds = np.zeros(self.system_size)
+        df_ds[-1] = -1
+        jac_inverse = self._compute_jac_inverse()
+        sensitivity = np.matmul(jac_inverse, -df_ds)
+        return sensitivity
+
+    def solve_phase_envolope(self, t, p, manually=False):
+        initial_tp, initial_ki = self._solve_from_wilson(t, p)
+        ln_tp = np.log(initial_tp)
+        ln_ki = np.log(initial_ki)
+        self.setup_independent_vars_initial_values(np.array([*ln_ki, *ln_tp]))
+        self.set_spec('lnT', np.log(t))
+        _ = self.solve()
+        sensitivity = self.print_var_and_sensitivity()
+
+        while True:
+            if manually:
+                input_text = input()
+                var_name, value = input_text.split((' '))
+                value = float(value)
+            self.set_spec(var_name, value)
+            self._update_x_new_from_senstivity(var_name, value, sensitivity)
+            self.solve()
+            sensitivity = self.print_var_and_sensitivity()
+
+    def _solve_from_wilson(self, t, p):
+        wilson_solver = create_saturation_point_solver(self._stream, SaturationType.from_beta(self.beta), 'Wilson')
+        tp, ki, p_iters = wilson_solver.calculate_saturation_condition(self.zi, t, p, 'P')
+        return tp, ki
+
+    def print_var_and_sensitivity(self):
+        sensitivity = self.compute_current_sensitivity()
+        print('Variables and sensitivity')
+        for var_name, var_value, each_sensitivity in zip(self.independent_vars,
+                                                         self._independent_var_values, sensitivity):
+            print(f'{var_name}\t{var_value}\t{each_sensitivity}')
+        print(f'T = {self.t}\tP = {self.p}')
+        return sensitivity
+
+    def _update_x_new_from_senstivity(self, var_name, value, sensitivity):
+        var_id = self.independent_var_map[var_name]
+        delta_s = value - self._independent_var_values[var_id]
+        x_new = self._independent_var_values + sensitivity*delta_s
+        self._independent_var_values = x_new
+

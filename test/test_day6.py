@@ -211,7 +211,7 @@ class TestEquilEqns(unittest.TestCase):
             tp, ki, iters = solver.solve(t, p, self.zs, 'T')
 
             equil_eqns = EquilEqnsForSaturationPoint(stream, 0.0, self.zs)
-            vars = np.zeros(stream.inflow_size+2)
+            vars = np.zeros(stream.inflow_size + 2)
             ln_ki = np.log(ki)
             vars[:-2] = ln_ki
             vars[-2:] = np.log(tp)
@@ -259,6 +259,17 @@ class TestEquilEqns(unittest.TestCase):
             print(f'Bubble point pressure for T={t} is {final_p}, used {iters} iterations')
             self.assertAlmostEqual(final_p, 1.109529499491139)
 
+            var_names = equil_eqns.independent_vars.copy()
+            sensitivity = equil_eqns.compute_current_sensitivity()
+            sen = [(var, value) for var, value in zip(var_names, sensitivity)]
+            pass
+
+    def test_solve_phase_envolope_manually(self):
+        with init_system(self.components, 'SRK') as stream:
+            equil_eqns = EquilEqnsForSaturationPoint(stream, 0.0, self.zs)
+            t = 150
+            p = 0.5
+            equil_eqns.solve_phase_envolope(t, p, manually=True)
 
     def test_solve_dew(self):
         with init_system(self.components, 'SRK') as stream:
@@ -305,15 +316,14 @@ class TestEquilEqns(unittest.TestCase):
             for i in range(equil_eqns.system_size):
                 pert_new = pert
                 if i == 8:
-                    pert_new = pert/10
+                    pert_new = pert / 10
                 equil_eqns._independent_var_values = var_old.copy()
                 equil_eqns._independent_var_values[i] += pert_new
                 equil_eqns._update_dependent_variables()
                 equil_eqns._update_residuals()
-                jac_numerical[:, i] = (equil_eqns._residual_values - residuals_old)/pert_new
+                jac_numerical[:, i] = (equil_eqns._residual_values - residuals_old) / pert_new
                 if not np.allclose(jac_analytical[:, i], jac_numerical[:, i], atol=1e-5):
                     print(i)
                     print(np.abs(jac_analytical[:, i] - jac_numerical[:, i]))
                 self.assertTrue(np.allclose(jac_analytical[:, i], jac_numerical[:, i], atol=1e-5))
         pass
-

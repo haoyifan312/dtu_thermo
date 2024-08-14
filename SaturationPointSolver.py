@@ -14,6 +14,13 @@ class SaturationType(IntEnum):
     BUBBLE_POINT = 1
     DEW_POINT = 2
 
+    @staticmethod
+    def from_beta(beta):
+        if beta == 1.0:
+            return SaturationType.DEW_POINT
+        elif beta == 0.0:
+            return SaturationType.BUBBLE_POINT
+
 
 def bubble_point_fun(zi: np.array, ki: np.array):
     return np.sum(zi * ki) - 1.0
