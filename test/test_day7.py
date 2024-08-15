@@ -15,10 +15,19 @@ class TestMultiPhaseRachfordRice(unittest.TestCase):
         'H2S': 0.25
     }
     t = 201
+    ts = [196, 198, 200, 201, 203, 204, 205]
     p = 4.0
     stream = ThermclcInterface(list(inflows.keys()), 'SRK')
     n_phases = 3
     inflow_map = {inflow: i for i, inflow in enumerate(inflows.keys())}
+
+    initial_betas_gold = [[0.0125, 0.9875, 0],
+                          [0.0125, 0.9875, 0],
+                          [0.0138, 0.984, 0.0021],
+                          [0.1574, 0.6135, 0.229],
+                          [0.3266, 0.2012, 0.4722],
+                          [0.3844, 0.07, 0.5456],
+                          [0.4151, 0, 0.5849]]
 
     def test_constructor(self):
         mrr = self.create_mrr()
@@ -69,6 +78,21 @@ class TestMultiPhaseRachfordRice(unittest.TestCase):
         self.assertTrue(np.allclose(beta, np.array([0.01251599, 0.98748401, 0.0])))
         self.assertAlmostEqual(q, 0.08003948041420372)
         self.assertTrue(iters < 5)
+
+    def test_all_q_minimization_for_initial_guess(self):
+        mrr = self.create_mrr()
+        for i, t in enumerate(self.ts):
+            self.setup_mrr_with_inflow_and_phi_from_wilson(mrr, t, self.p)
+
+            print(f'\n\nT={t}')
+            mrr.set_all_phase_active()
+            q, iters = mrr.minimize_q()
+            beta = mrr.get_effective_beta()
+            print(f'beta={beta}')
+            print(f'g={mrr._gradient_k}')
+            print(f'iters={iters}')
+            print(f'q={q}')
+            self.assertTrue(np.allclose(beta, np.array(self.initial_betas_gold[i]), atol=1e-4))
 
     def setup_mrr_with_inflow_and_phi_from_wilson(self, mrr, t, p):
         mrr.set_zi(self.inflow_moles)

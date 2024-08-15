@@ -82,8 +82,7 @@ class MultiPhaseRachfordRice:
                 self._hessian_kl[:, i] = np.zeros(self.n_phases)
                 self._hessian_kl[i, i] = 1.0
 
-    def minimize_q(self):
-        self._set_all_phase_active()
+    def minimize_q(self, previous_iters=0):
         for i in range(self._max_iter):
             beta = self.get_effective_beta()
             self._update_Ei()
@@ -102,9 +101,12 @@ class MultiPhaseRachfordRice:
         else:
             raise MultiPhaseSolverException(f'MRR Q minimization did not converge in {i} iterations')
         if self._minimization_converged():
-            return self.compute_q(), i
+            return self.compute_q(), i+previous_iters
+        elif not all(self.phase_active):
+            self._active_one_phase()
+            return self.minimize_q(i)
 
-    def _set_all_phase_active(self):
+    def set_all_phase_active(self):
         for i in range(self.n_phases):
             self._set_phase_active(True, i)
 
@@ -146,3 +148,9 @@ class MultiPhaseRachfordRice:
                 if each_g < -self._tol:  # beta=0    g>0
                     return False
         return True
+
+    def _active_one_phase(self):
+        for i, active in enumerate(self.phase_active):
+            if not active:
+                self.phase_active[i] = True
+                return
