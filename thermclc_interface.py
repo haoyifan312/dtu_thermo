@@ -111,6 +111,7 @@ class ThermclcInterface:
 
     def __init__(self, inflows, eos):
         self._inflows = inflows
+        self.inflow_map = {inflow: i for i, inflow in enumerate(inflows)}
         self._eos = self._get_eos_option(eos)
         self._indata()
 
@@ -152,6 +153,9 @@ class ThermclcInterface:
             PropertyType.TEMPERATURE_DER: compute_wilson_k_der_t,
             PropertyType.PRESSURE_DER: compute_wilson_k_der_p
         }
+
+        if isinstance(i, str):
+            i = self.inflow_map[i]
 
         tc, pc, omega = self.get_critical_properties(i)
         return fun[property_type](t, tc, p, pc, omega)
