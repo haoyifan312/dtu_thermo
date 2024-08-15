@@ -105,18 +105,41 @@ class TestMultiPhaseRachfordRice(unittest.TestCase):
     def test_ss_201(self):
         i = 3
         ss_mrr = self.create_ss_mrr()
-        t = self.ts[3]
+        self._test_ss_mrr_for_case(i, ss_mrr)
+
+    def test_ss_196_no_initial_vap(self):
+        i = 0
+        ss_mrr = self.create_ss_mrr()
+        self._test_ss_mrr_for_case(i, ss_mrr)
+
+    def test_ss_205_no_l1(self):
+        i = 6
+        ss_mrr = self.create_ss_mrr()
+        self._test_ss_mrr_for_case(i, ss_mrr)
+
+    def test_all_ss_cases(self):
+        ss_mrr = self.create_ss_mrr()
+        for i in range(len(self.ts)):
+            self._test_ss_mrr_for_case(i, ss_mrr)
+
+    def _test_ss_mrr_for_case(self, i, ss_mrr):
+        t = self.ts[i]
         p = self.p
+        self._test_ss_mrr_for_tp(ss_mrr, t, p, self.final_beta_gold[i])
+
+    def _test_ss_mrr_for_tp(self, ss_mrr, t, p, gold):
         l1_ln_phi = self.get_l1_ln_phi(t, p)
         l2_ln_phi = self.get_l2_ln_phi(t, p)
         initial_phi = np.array([np.exp(l1_ln_phi),
                                 np.exp(l2_ln_phi),
                                 np.ones(len(self.inflows))])
         beta, iters_ss, iters_newton = ss_mrr.solve(t, p, self.inflow_moles, np.transpose(initial_phi))
+        print(f'T={t}')
         print(f'beta={beta}')
         print(f'ss iters={iters_ss}')
         print(f'newton iters={iters_newton}')
-        self.assertTrue(np.allclose(beta, self.final_beta_gold[i], atol=1e-4))
+        if gold is not None:
+            self.assertTrue(np.allclose(beta, gold, atol=1e-4))
 
     def setup_mrr_with_inflow_and_phi_from_wilson(self, mrr, t, p):
         mrr.set_zi(self.inflow_moles)
