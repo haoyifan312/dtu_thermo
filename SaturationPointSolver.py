@@ -214,6 +214,7 @@ class SaturationPointBySuccessiveSubstitution:
 
         free_var_history = []
         k_history = []
+        newton_step = 1.0
         for i in range(self._max_iter):
             free_var_history.append(tp[free_var_index])
             ln_k_props = self._ln_k_fun(self._stream, *tp, zi, rr_result)
@@ -221,7 +222,7 @@ class SaturationPointBySuccessiveSubstitution:
             ki = np.exp(ln_k)
             k_history.append(ki)
             f = self._gov_eqn(zi, ki)
-            if abs(f) < self._tol:
+            if abs(f) < self._tol and abs(newton_step) < 1e-4:
                 if plot_t_vs_k6 is not None:
                     self._plot_t_vs_k6(free_var_history, k_history, plot_t_vs_k6)
                 return tp, ki, i

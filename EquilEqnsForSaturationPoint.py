@@ -269,8 +269,8 @@ class EquilEqnsForSaturationPoint:
         self.set_spec(starting_spec, spec_value)
 
     def _setup_first_pt_initial_guess_from_successive_substitution(self, t, p, spec):
-        tp, ki = self._solve_by_successive_substitution(t, p, spec, max_iter=100)
-        if self._is_trivial_solution(ki):
+        tp, ki, ss_converged = self._solve_by_successive_substitution(t, p, spec, max_iter=100)
+        if self._is_trivial_solution(ki) or not ss_converged:
             tp, ki = self._solve_from_wilson(t, p)
 
         ln_tp = np.log(tp)
@@ -287,12 +287,14 @@ class EquilEqnsForSaturationPoint:
         except KeyError:
             free_var_name = 'P'
         solver = self._create_successive_substitution_solver(max_iter=max_iter)
+        converged = False
         try:
             tp, ki, _ = solver.solve(t, p, self.zi, free_var_name, initialization_data=initialization_data,
                                      damping_factor=0.5)
+            converged = True
         except SaturationPointException as e:
             tp, ki = e.tp_ki
-        return tp, ki
+        return tp, ki, converged
 
     def _create_successive_substitution_solver(self, max_iter=10):
         if self.beta == 0.0:
@@ -348,12 +350,13 @@ class EquilEqnsForSaturationPoint:
         spec_var = self.independent_vars[self.spec_var_id]
         current_tp = [self.t, self.p]
         current_ks = np.exp(self.lnKi)
-        tp, ki = self._solve_by_successive_substitution(self.t, self.p, spec_var,
-                                                        initialization_data=(current_tp, current_ks))
+        tp, ki, ss_converged = self._solve_by_successive_substitution(self.t, self.p, spec_var,
+                                                        initialization_data=(current_tp, current_ks),
+                                                        max_iter=50)
         # if self._is_trivial_solution(ki):
         #     tp, ki = self._solve_from_wilson(self.t, self.p, 'T' if spec_var == 'P' else 'P')
 
-        if not self._is_trivial_solution(np.array(ki)):
+        if not self._is_trivial_solution(np.array(ki)) and ss_converged:
             self.setup_independent_vars_initial_values(np.array([*np.log(ki), *tp]))
 
     def _is_trivial_solution(self, ki):
