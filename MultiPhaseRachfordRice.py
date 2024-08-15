@@ -138,7 +138,7 @@ class MultiPhaseRachfordRice:
 
     def _deactive_phase_from_zero_beta(self):
         for i, each_beta in enumerate(self._beta):
-            if each_beta <= 0.0:
+            if each_beta <= 1e-14:
                 self._set_phase_active(False, i)
 
     def _minimization_converged(self):

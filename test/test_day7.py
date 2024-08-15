@@ -122,19 +122,31 @@ class TestMultiPhaseRachfordRice(unittest.TestCase):
         for i in range(len(self.ts)):
             self._test_ss_mrr_for_case(i, ss_mrr)
 
+    def test_ss_to_find_3_phase_t_range(self):
+        """ 195.64; 203.3"""
+        t_end = 203.2
+        t_start = 195.6
+        steps = 10
+        step_size = 0.1/10
+        ss_mrr = self.create_ss_mrr()
+        for each_start in (t_start, t_end):
+            for i in range(steps+1):
+                t = each_start + step_size*i
+                self._test_ss_mrr_for_tp(ss_mrr, t, self.p)
+
     def _test_ss_mrr_for_case(self, i, ss_mrr):
         t = self.ts[i]
         p = self.p
         self._test_ss_mrr_for_tp(ss_mrr, t, p, self.final_beta_gold[i])
 
-    def _test_ss_mrr_for_tp(self, ss_mrr, t, p, gold):
+    def _test_ss_mrr_for_tp(self, ss_mrr, t, p, gold=None):
         l1_ln_phi = self.get_l1_ln_phi(t, p)
         l2_ln_phi = self.get_l2_ln_phi(t, p)
         initial_phi = np.array([np.exp(l1_ln_phi),
                                 np.exp(l2_ln_phi),
                                 np.ones(len(self.inflows))])
         beta, iters_ss, iters_newton = ss_mrr.solve(t, p, self.inflow_moles, np.transpose(initial_phi))
-        print(f'T={t}')
+        print(f'\n\nT={t}')
         print(f'beta={beta}')
         print(f'ss iters={iters_ss}')
         print(f'newton iters={iters_newton}')
