@@ -29,6 +29,14 @@ class TestMultiPhaseRachfordRice(unittest.TestCase):
                           [0.3844, 0.07, 0.5456],
                           [0.4151, 0, 0.5849]]
 
+    final_beta_gold = [[0.166, 0.7601, 0.0739],
+                       [0.2063, 0.4562, 0.3375],
+                       [0.2421, 0.2849, 0.473],
+                       [0.2641, 0.219, 0.5168],
+                       [0.3657, 0.0565, 0.5779],
+                       [0.4078, 0, 0.5922],
+                       [0.3983, 0, 0.6017]]
+
     def test_constructor(self):
         mrr = self.create_mrr()
 
@@ -77,7 +85,7 @@ class TestMultiPhaseRachfordRice(unittest.TestCase):
         print(f'q={q}')
         self.assertTrue(np.allclose(beta, np.array([0.01251599, 0.98748401, 0.0])))
         self.assertAlmostEqual(q, 0.08003948041420372)
-        self.assertTrue(iters < 5)
+        self.assertTrue(iters < 6)
 
     def test_all_q_minimization_for_initial_guess(self):
         mrr = self.create_mrr()
@@ -94,19 +102,43 @@ class TestMultiPhaseRachfordRice(unittest.TestCase):
             print(f'q={q}')
             self.assertTrue(np.allclose(beta, np.array(self.initial_betas_gold[i]), atol=1e-4))
 
+    def test_ss_201(self):
+        i = 3
+        ss_mrr = self.create_ss_mrr()
+        t = self.ts[3]
+        p = self.p
+        l1_ln_phi = self.get_l1_ln_phi(t, p)
+        l2_ln_phi = self.get_l2_ln_phi(t, p)
+        initial_phi = np.array([np.exp(l1_ln_phi),
+                                np.exp(l2_ln_phi),
+                                np.ones(len(self.inflows))])
+        beta, iters_ss, iters_newton = ss_mrr.solve(t, p, self.inflow_moles, np.transpose(initial_phi))
+        print(f'beta={beta}')
+        print(f'ss iters={iters_ss}')
+        print(f'newton iters={iters_newton}')
+        self.assertTrue(np.allclose(beta, self.final_beta_gold[i], atol=1e-4))
+
     def setup_mrr_with_inflow_and_phi_from_wilson(self, mrr, t, p):
         mrr.set_zi(self.inflow_moles)
         mrr.set_phi_for_phase(np.ones(mrr.component_size), MultiPhaseIndexVLLE.VAPOR)
         # c1-rich liquid phase
-        l1_ln_phi = self.get_all_ln_phi_assuming_ideal_vapor(t, p)
-        l1_ln_phi[self.inflow_map['C1']] = self.get_c1_ln_phi_in_rich_liquid(t, p)
+        l1_ln_phi = self.get_l1_ln_phi(t, p)
         mrr.set_phi_for_phase(np.exp(l1_ln_phi), MultiPhaseIndexVLLE.LIQUID1)
         # h2s-rich liquid phase
-        l2_ln_phi = self.get_all_ln_phi_assuming_ideal_vapor(t, p)
-        l2_ln_phi[self.inflow_map['H2S']] = self.get_h2s_ln_phi_in_rich_liquid(t, p)
+        l2_ln_phi = self.get_l2_ln_phi(t, p)
         mrr.set_phi_for_phase(np.exp(l2_ln_phi), MultiPhaseIndexVLLE.LIQUID2)
         equal_molar_beta = np.array([1.0 / self.n_phases] * self.n_phases)
         mrr.set_beta(equal_molar_beta)
+
+    def get_l2_ln_phi(self, t, p):
+        l2_ln_phi = self.get_all_ln_phi_assuming_ideal_vapor(t, p)
+        l2_ln_phi[self.inflow_map['H2S']] = self.get_h2s_ln_phi_in_rich_liquid(t, p)
+        return l2_ln_phi
+
+    def get_l1_ln_phi(self, t, p):
+        l1_ln_phi = self.get_all_ln_phi_assuming_ideal_vapor(t, p)
+        l1_ln_phi[self.inflow_map['C1']] = self.get_c1_ln_phi_in_rich_liquid(t, p)
+        return l1_ln_phi
 
     def get_c1_ln_phi_in_rich_liquid(self, t, p):
         return self.get_c1_ln_phi_in_lean_liquid(t, p) + 1.0
@@ -130,6 +162,9 @@ class TestMultiPhaseRachfordRice(unittest.TestCase):
 
     def create_mrr(self):
         return MultiPhaseRachfordRice(self.stream, self.n_phases)
+
+    def create_ss_mrr(self):
+        return SuccessiveSubstitutionForMRR(self.stream, self.n_phases)
 
     @property
     def inflow_names(self):

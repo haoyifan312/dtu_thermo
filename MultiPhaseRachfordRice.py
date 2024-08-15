@@ -2,7 +2,8 @@ from enum import IntEnum
 
 import numpy as np
 
-from thermclc_interface import ThermclcInterface
+from SuccessiveSubstitutionSolver import SuccSubStatus, SuccessiveSubstitutionSolver
+from thermclc_interface import ThermclcInterface, FlashInput, PhaseEnum
 
 
 class MultiPhaseSolverException(Exception):
@@ -84,7 +85,6 @@ class MultiPhaseRachfordRice:
 
     def minimize_q(self, previous_iters=0):
         for i in range(self._max_iter):
-            beta = self.get_effective_beta()
             self._update_Ei()
             self._update_gradient()
             self._update_hessian()
@@ -93,6 +93,7 @@ class MultiPhaseRachfordRice:
             hessian_inv = np.linalg.inv(self._hessian_kl)
             newton_step = np.matmul(hessian_inv, -self._gradient_k)
             newton_step *= self.active_beta_coeff
+            beta = self.get_effective_beta()
             damping_factor = self._compute_damping_to_avoid_negative_beta(newton_step, beta)
             if not self.update_beta_to_decrease_q(damping_factor, current_q, newton_step):
                 self._update_gradient()  # for convergence check
@@ -101,10 +102,11 @@ class MultiPhaseRachfordRice:
         else:
             raise MultiPhaseSolverException(f'MRR Q minimization did not converge in {i} iterations')
         if self._minimization_converged():
-            return self.compute_q(), i+previous_iters
+            return self.compute_q(), i + previous_iters
         elif not all(self.phase_active):
             self._active_one_phase()
             return self.minimize_q(i)
+        pass
 
     def set_all_phase_active(self):
         for i in range(self.n_phases):
@@ -124,7 +126,7 @@ class MultiPhaseRachfordRice:
         current_beta = self.get_effective_beta()
         while True:
             effective_newton_step = damping_factor * newton_step
-            if np.linalg.norm(effective_newton_step) < self._tol:
+            if np.linalg.norm(effective_newton_step) < 1e-10:
                 return False
             new_beta = current_beta + effective_newton_step
             self.set_beta(new_beta)
@@ -154,3 +156,47 @@ class MultiPhaseRachfordRice:
             if not active:
                 self.phase_active[i] = True
                 return
+
+    def get_fractions_per_phase(self):
+        self._update_Ei()
+        zi_by_Ei = self.zi/self._Ei
+        return [zi_by_Ei*self._inv_phi_i_in_phase_k[:, i] for i in range(self.n_phases)]
+
+
+class SuccessiveSubstitutionForMRR:
+    def __init__(self, stream: ThermclcInterface, n_phases):
+        self._stream = stream
+        self.n_phases = n_phases
+        self.mrr = MultiPhaseRachfordRice(stream, n_phases)
+
+    def solve(self, t, p, zi, initial_phi_each_phase):
+        self.mrr.set_phi_all(initial_phi_each_phase)
+        self.mrr.set_all_phase_active()
+        self.mrr.set_zi(zi)
+        self.mrr.set_beta([1.0/self.n_phases]*self.n_phases)
+        _, newton_iters = self.mrr.minimize_q()
+        extra_data = [newton_iters]
+
+        def update_phis(data, did_acceleration):
+            x1, x2, y = self.mrr.get_fractions_per_phase()
+            l1_ln_phi = self._stream.calc_properties(FlashInput(t, p, x1), PhaseEnum.LIQ).phi
+            l2_ln_phi = self._stream.calc_properties(FlashInput(t, p, x2), PhaseEnum.LIQ).phi
+            v_ln_phi = self._stream.calc_properties(FlashInput(t, p, y), PhaseEnum.VAP).phi
+            all_phi = np.array([np.exp(l1_ln_phi),
+                                np.exp(l2_ln_phi),
+                                np.exp(v_ln_phi)])
+            return np.transpose(all_phi), SuccSubStatus.CONTINUE, data
+
+        def solve_mrr_q_minimization(all_phi, data):
+            self.mrr.set_phi_all(all_phi)
+            _, each_new_iters = self.mrr.minimize_q()
+            data[0] += each_new_iters
+            return data
+
+        ss = SuccessiveSubstitutionSolver(compute_new_g_fun=update_phis,
+                                          converged_fun=None,
+                                          compute_for_next_iter=solve_mrr_q_minimization,
+                                          max_iter_reached_fun=None)
+        ss_iters, ss_result = ss.solve(initial_phi_each_phase, extra_data)
+        return self.mrr.get_effective_beta(), ss_iters, extra_data[0]
+
