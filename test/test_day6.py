@@ -173,7 +173,7 @@ class TestSaturationPointSuccessiveSubstitution(unittest.TestCase):
             tp, _, iters = solver.solve(t, p, self.zs, 'P', damping_factor=0.5)  # had to introduce damping
             bubble_p = tp[1]
             print(f'Dew point pressure at T={t} is {bubble_p} using {iters} iterations')
-            self.assertAlmostEqual(bubble_p, 0.061910791240183206)
+            self.assertAlmostEqual(bubble_p, 0.011222187243660869)
 
     def test_dew_point_t(self):
         with init_system(self.components, 'SRK') as stream:

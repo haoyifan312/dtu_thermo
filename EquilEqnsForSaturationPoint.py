@@ -157,15 +157,16 @@ class EquilEqnsForSaturationPoint:
         ret[-1, self.spec_var_id] = 1.0
 
     @property
-    def ln_k_s(self):
+    def ln_k_names(self):
         return self.independent_vars[:-2]
 
-    def solve(self, damping_factor=1.0):
+    def solve(self, damping_factor=1.0, accept_loose_solution=False):
         self._solve_x_new_using_successive_substitution()
 
         history = []
         del_x_norm = 1
         last_delx = np.zeros(self.system_size)
+        best_solution = None
         for i in range(self._max_iter):
             if i == 50:
                 damping_factor *= 0.5
@@ -175,9 +176,15 @@ class EquilEqnsForSaturationPoint:
             self._update_residuals()
             f_norm = np.linalg.norm(self._residual_values)
             history.append((f_norm, del_x_norm, self._independent_var_values.copy()))
+            if best_solution is None:
+                best_solution = (f_norm, self._independent_var_values.copy())
+            else:
+                previous_best_fnorm = best_solution[0]
+                if f_norm < previous_best_fnorm:
+                    best_solution = (f_norm, self._independent_var_values.copy())
             if f_norm < self._tol:
                 print(f'Newton solver for saturation point converged in {i} iterations')
-                return (self.t, self.p), self.ln_k_s, i
+                return (self.t, self.p), self.lnKi, i
             self._update_jacobian()
             jac_inverse = self._compute_jac_inverse()
             del_x = np.matmul(-jac_inverse, self._residual_values)
@@ -188,12 +195,24 @@ class EquilEqnsForSaturationPoint:
             effect_del_x = effect_del_x*damping_factor
             if np.max(np.abs(last_delx + effect_del_x)) < 0.2: # bouncing
                 effect_del_x *= 0.5
-            if i > 10 and np.linalg.norm((effect_del_x)) < self._tol:
-                raise EquilEqnsForSaturationPointException(f'newton step is stuck at iter {i} with fnorm={f_norm}')
+            if i > 10 and np.linalg.norm((effect_del_x)) <1e-6:
+                if accept_loose_solution:
+                    self._set_system_to_best_solution(best_solution)
+                else:
+                    raise EquilEqnsForSaturationPointException(f'newton step is stuck at iter {i} with fnorm={f_norm}')
             self._independent_var_values += effect_del_x
             last_delx = effect_del_x.copy()
         else:
-            raise EquilEqnsForSaturationPointException(f'Newton solver did not converge in {i} iterations')
+            if accept_loose_solution:
+                self._set_system_to_best_solution(best_solution)
+            else:
+                raise EquilEqnsForSaturationPointException(f'Newton solver did not converge in {i} iterations')
+
+    def _set_system_to_best_solution(self, best_solution):
+        print(f'Newton solver for phase equilibrium did not converge, set to best solution '
+              f'at fnorm={best_solution[0]}')
+        self._independent_var_values = best_solution[1].copy()
+        self._update_dependent_variables()
 
     def _compute_jac_inverse(self):
         jac_cond = np.linalg.cond(self._jac)
@@ -251,7 +270,7 @@ class EquilEqnsForSaturationPoint:
                         pass
                     self._update_x_new_from_senstivity(var_name, value, sensitivity)
             try:
-                self.solve(damping_factor=0.5)
+                self.solve(damping_factor=0.5, accept_loose_solution=False)
             except EquilEqnsForSaturationPointException as e:
                 print(e)
                 self._reset_to_old_var_values(value_history[-1])
@@ -353,8 +372,8 @@ class EquilEqnsForSaturationPoint:
         tp, ki, ss_converged = self._solve_by_successive_substitution(self.t, self.p, spec_var,
                                                         initialization_data=(current_tp, current_ks),
                                                         max_iter=50)
-        # if self._is_trivial_solution(ki):
-        #     tp, ki = self._solve_from_wilson(self.t, self.p, 'T' if spec_var == 'P' else 'P')
+        if self._is_trivial_solution(ki) or not ss_converged:
+            tp, ki = self._solve_from_wilson(self.t, self.p, 'T' if spec_var == 'P' else 'P')
 
         if not self._is_trivial_solution(np.array(ki)) and ss_converged:
             self.setup_independent_vars_initial_values(np.array([*np.log(ki), *tp]))

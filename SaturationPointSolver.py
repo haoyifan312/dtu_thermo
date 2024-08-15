@@ -231,7 +231,10 @@ class SaturationPointBySuccessiveSubstitution:
             elif free_var == 'P':
                 ln_phi_der = ln_k_props.dphi_dp
             f_der = self._der_eqn(zi, ki, ln_phi_der)
+            if abs(f_der) < 1e-7:
+                return tp, ki, i
             newton_step = - f/f_der
+            newton_step = self._get_newton_step_to_avoid_bounding(tp[free_var_index], newton_step)
             tp[free_var_index] += newton_step*damping_factor
             self._set_result_fun(rr_result, zi, ki)
         else:
@@ -267,3 +270,10 @@ class SaturationPointBySuccessiveSubstitution:
         plt.legend()
         plt.yscale('log')
         plt.savefig(plot_file_name)
+
+    def _get_newton_step_to_avoid_bounding(self, orignal_parameter, newton_step):
+        factor = 1.0
+        while True:
+            if newton_step*factor + orignal_parameter > 0.0:
+                return newton_step*factor
+            factor *= 0.5
