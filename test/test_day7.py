@@ -56,6 +56,20 @@ class TestMultiPhaseRachfordRice(unittest.TestCase):
         self.assertAlmostEqual(q, 0.18304988463622784)
         self.assertTrue(iters < 5)
 
+    def test_q_minimization_remove_phase(self):
+        mrr = self.create_mrr()
+        self.setup_mrr_with_inflow_and_phi_from_wilson(mrr, 198.0, 4.0)
+
+        q, iters = mrr.minimize_q()
+        beta = mrr.get_effective_beta()
+        print(f'beta={beta}')
+        print(f'g={mrr._gradient_k}')
+        print(f'iters={iters}')
+        print(f'q={q}')
+        self.assertTrue(np.allclose(beta, np.array([0.01251599, 0.98748401, 0.0])))
+        self.assertAlmostEqual(q, 0.08003948041420372)
+        self.assertTrue(iters < 5)
+
     def setup_mrr_with_inflow_and_phi_from_wilson(self, mrr, t, p):
         mrr.set_zi(self.inflow_moles)
         mrr.set_phi_for_phase(np.ones(mrr.component_size), MultiPhaseIndexVLLE.VAPOR)
