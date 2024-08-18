@@ -18,8 +18,8 @@ class Component:
     material_balance_group_and_stoi: List
 
 
-class ReactionBuilder:
-    def __init__(self, app_components: list):
+class ReactionSystem:
+    def __init__(self, app_components: list, max_iter=100, tol=1e-7):
         self.app_components = app_components
         self._mbg = self._extract_material_group()
         self._true_components = self._build_true_components()
@@ -31,11 +31,14 @@ class ReactionBuilder:
         self._lambdas = np.zeros(len(app_components))
         self._bi = np.zeros(len(app_components))
         self._xi = np.zeros(len(self._true_components))
+        self._max_iter = max_iter
+        self._tol = tol
 
     def set_bi_from_zi(self, zi):
         self._bi = zi
 
-    def _update_xi(self):
+    def _update_xi(self, t, p):
+        self.update_mu_by_rt(t, p)
         first_term = np.matmul(np.transpose(self._mbg_by_component_matrix), np.transpose(self._lambdas))
         ln_xi = np.transpose(first_term) - self.mu_by_rt
         self._xi = np.exp(ln_xi)
@@ -132,4 +135,52 @@ class ReactionBuilder:
 
     def _create_keq_index(self):
         return {name: i for i, name in enumerate(self.dimer_names)}
+
+    def estimate_lambdas_by_fixing_nt(self, t, p, nt, lambdas):
+        self._lambdas = lambdas
+        self._update_xi(t, p)
+
+        for i in range(self._max_iter):
+            q = self._compute_q(nt)
+            g = self._compute_q_gradient(nt)
+            h = self._compute_q_hessian(nt)
+            newton_step = np.matmul(np.linalg.inv(h), -g)
+            damping_factor = self._compute_damping_factor_to_reduce_q(nt,t, p, q, newton_step)
+            if np.linalg.norm(damping_factor*newton_step) < self._tol:
+                return lambdas, i
+            lambdas += newton_step*damping_factor
+            self._lambdas = lambdas
+
+
+    def _compute_q(self, nt):
+        sum_x = np.sum(self._xi)
+        sec_term = np.sum(self._lambdas*self._bi)
+        return nt*(sum_x - 1.0) - sec_term
+
+    def _compute_q_gradient(self, nt):
+        sum_Aji_xi = np.matmul(self._mbg_by_component_matrix, np.transpose(self._xi))
+        return nt*np.transpose(sum_Aji_xi) - self._bi
+
+    def _compute_q_hessian(self, nt):
+        mbg_size = len(self.app_components)
+        ret = np.zeros((mbg_size, mbg_size))
+        for j in range(mbg_size):
+            for k in range(mbg_size):
+                ret[j, k] = nt*np.sum(self._mbg_by_component_matrix[j, :]*self._mbg_by_component_matrix[k, :]*self._xi)
+        return ret
+
+    def _compute_damping_factor_to_reduce_q(self, nt, t, p, q, newton_step):
+        delta = 1e-10
+        factor = 1.0
+        current_lambdas = self._lambdas.copy()
+        while True:
+            new_lambdas = current_lambdas + newton_step*factor
+            self._lambdas = new_lambdas
+            self._update_xi(t, p)
+            new_q = self._compute_q(nt)
+            if new_q < q + delta or factor < 1e-10:
+                return factor
+            factor *= 0.5
+
+
 
