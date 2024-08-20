@@ -5,6 +5,10 @@ from typing import List, Any
 import numpy as np
 
 
+class ReactionSystemException(Exception):
+    pass
+
+
 class ComponentType(IntEnum):
     MONOMER = 0
     DIMER = 1
@@ -38,6 +42,10 @@ class ReactionSystem:
         self._tol = tol
         self._t = 0.0
         self._p = 0.0
+        self._nt = 0.0
+
+    def set_nt(self, nt):
+        self._nt = nt
 
     def set_tp(self, t, p):
         self._t = t
@@ -52,7 +60,7 @@ class ReactionSystem:
         ln_xi = np.transpose(first_term) - self.mu_by_rt
         self._xi = np.exp(ln_xi)
 
-    def set_keqs(self, keqs: dict):
+    def set_keqs(self, keqs: list):
         self.keq_data = keqs
 
     def update_keqs(self, t):
@@ -146,41 +154,45 @@ class ReactionSystem:
     def _create_keq_index(self):
         return {name: i for i, name in enumerate(self.dimer_names)}
 
-    def estimate_lambdas_by_fixing_nt(self,nt, lambdas):
+    def estimate_lambdas_by_fixing_nt(self, nt, lambdas):
+        self.set_nt(nt)
         self._lambdas = lambdas
         for i in range(self._max_iter):
             # print(lambdas)
             self._update_xi()
-            q = self._compute_q(nt)
-            g = self._compute_q_gradient(nt)
+            q = self._compute_q()
+            g = self._compute_q_gradient()
             # print(g)
-            h = self._compute_q_hessian(nt)
+            h = self._compute_q_hessian()
             newton_step = np.matmul(np.linalg.inv(h), -g)
-            damping_factor = self._compute_damping_factor_to_reduce_q(nt, q, newton_step)
-            if np.linalg.norm(damping_factor*newton_step) < 1e-12:
+            damping_factor = self._compute_damping_factor_to_reduce_q(q, newton_step)
+            if np.linalg.norm(damping_factor*newton_step) < self._tol:
                 return lambdas, i
             lambdas += newton_step*damping_factor
             self._lambdas = lambdas
 
 
-    def _compute_q(self, nt):
+    def _compute_q(self):
         sum_x = np.sum(self._xi)
         sec_term = np.sum(self._lambdas*self._bi)
-        return nt*(sum_x - 1.0) - sec_term
+        return self._nt*(sum_x - 1.0) - sec_term
 
-    def _compute_q_gradient(self, nt):
-        sum_Aji_xi = np.matmul(self._mbg_by_component_matrix, np.transpose(self._xi))
-        return nt*np.transpose(sum_Aji_xi) - self._bi
+    def _compute_q_gradient(self):
+        sum_Aji_xi = self._compute_sumi_aji_xi()
+        return self._nt*np.transpose(sum_Aji_xi) - self._bi
 
-    def _compute_q_hessian(self, nt):
+    def _compute_sumi_aji_xi(self):
+        return np.matmul(self._mbg_by_component_matrix, np.transpose(self._xi))
+
+    def _compute_q_hessian(self):
         mbg_size = len(self.app_components)
         ret = np.zeros((mbg_size, mbg_size))
         for j in range(mbg_size):
             for k in range(mbg_size):
-                ret[j, k] = nt*np.sum(self._mbg_by_component_matrix[j, :]*self._mbg_by_component_matrix[k, :]*self._xi)
+                ret[j, k] = self._nt*np.sum(self._mbg_by_component_matrix[j, :]*self._mbg_by_component_matrix[k, :]*self._xi)
         return ret
 
-    def _compute_damping_factor_to_reduce_q(self, nt, q, newton_step):
+    def _compute_damping_factor_to_reduce_q(self, q, newton_step):
         delta = 1e-10
         factor = 1.0
         current_lambdas = self._lambdas.copy()
@@ -188,10 +200,66 @@ class ReactionSystem:
             new_lambdas = current_lambdas + newton_step*factor
             self._lambdas = new_lambdas
             self._update_xi()
-            new_q = self._compute_q(nt)
+            new_q = self._compute_q()
             if new_q < q + delta or factor < 1e-10:
                 return factor
             factor *= 0.5
+
+    def _compute_f(self):
+        mbg_size = len(self.app_components)
+        ret = np.zeros(mbg_size + 1)
+        ret[:mbg_size] = self._compute_mbg_balance_residuals()
+        ret[-1] = self._compute_sumx_residual()
+        return ret
+
+    def _compute_mbg_balance_residuals(self):
+        sum_aji_xi = self._compute_sumi_aji_xi()
+        return self._nt*sum_aji_xi - self._bi
+
+    def _compute_sumx_residual(self):
+        return np.sum(self._xi) - 1.0
+
+    @property
+    def mbg_size(self):
+        return len(self.app_components)
+
+    def _compute_jac(self):
+        mbg_size = self.mbg_size
+        ret = np.zeros((mbg_size+1, mbg_size+1))
+        ret[:mbg_size, :mbg_size] = self._compute_q_hessian()
+        sumi_aji_xi = self._compute_sumi_aji_xi()
+        ret[:mbg_size, -1] = sumi_aji_xi
+        ret[-1, :mbg_size] = sumi_aji_xi
+        return ret
+
+    def solve(self, t, p, zi: np.array, initial_nt: float, initial_lambdas: np.array):
+        self.set_tp(t, p)
+        self.set_bi_from_zi(zi)
+        lambdas, iters = self.estimate_lambdas_by_fixing_nt(initial_nt, initial_lambdas)
+        print(f'estimated lambdas={lambdas} in {iters} iterations')
+
+        x = np.array([*lambdas, initial_nt])
+        for i in range(self._max_iter):
+            self._lambdas = x[:self.mbg_size]
+            self.set_nt(x[-1])
+            self._update_xi()
+
+            f = self._compute_f()
+            norm = np.linalg.norm(f)
+            if norm < self._tol:
+                return i
+
+            jac = self._compute_jac()
+            newton_step = np.matmul(np.linalg.inv(jac), -f)
+            x += newton_step
+        else:
+            raise ReactionSystemException(f'Newton solver failed to converge in {i} iterations')
+
+
+
+
+
+
 
 
 
