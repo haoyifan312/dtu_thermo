@@ -39,9 +39,9 @@ class TestReactionSystem(unittest.TestCase):
         p = 1
         system = self._build_example_reaction_system()
         system.set_keqs(self.keq_data)
+        system.set_tp(t, p)
         system.update_keqs(t)
         print(system._keq_per_mmhg_values)
-        system.update_mu_by_rt(t, p)
         print(system.mu_by_rt)
 
     def test_xi(self):
@@ -51,17 +51,76 @@ class TestReactionSystem(unittest.TestCase):
         system.set_keqs(self.keq_data)
 
         system._lambdas = np.array([-1]*5)
-        system._update_xi(t, p)
+        system.set_tp(t, p)
+        system._update_xi()
         print(system._xi)
 
     def test_estimate_lambdas(self):
+        t = 350
+        p = 2
+        system = self._build_example_reaction_system()
+        system.set_keqs(self.keq_data)
+        system.set_bi_from_zi(np.array([0.2]*5))
+        system.set_tp(t, p)
+        lambdas, iters = system.estimate_lambdas_by_fixing_nt(0.6, np.array([-1.0]*5))
+        print(f'estimated lambdas={lambdas} in {iters} iterations')
+        # self.assertTrue(np.allclose(lambdas, np.array([-2.9390302,  -3.48383727, -3.49053512,
+        #                                                 -3.52103915, -1.32175584])))
+
+    def test_q_g_hessian(self):
+        t = 350
+        p = 2
+        nt = 0.75
+        system = self._build_example_reaction_system()
+        system.set_keqs(self.keq_data)
+        system.set_bi_from_zi(np.array([0.2]*5))
+        system.set_tp(t, p)
+        lambas = np.array([-1.0]*5)
+        system._lambdas = lambas
+        system._update_xi()
+        q = system._compute_q(nt)
+        g = system._compute_q_gradient(nt)
+        h = system._compute_q_hessian(nt)
+        print(q)
+        print(g)
+        num_der = []
+        pert = 1e-6
+        for i in range(len(lambas)):
+            new_labds = lambas.copy()
+            new_labds[i] += pert
+            system._lambdas = new_labds
+            system._update_xi()
+            new_q = system._compute_q(nt)
+            num_der.append((new_q-q)/pert)
+        print(num_der)
+        self.assertTrue(np.allclose(g, np.array(num_der)))
+
+        print('\n')
+        print(h)
+        num_hessian = []
+        pert = 1e-6
+        for i in range(len(lambas)):
+            new_labds = lambas.copy()
+            new_labds[i] += pert
+            system._lambdas = new_labds
+            system._update_xi()
+            new_g = system._compute_q_gradient(nt)
+            num_hessian.append((new_g-g)/pert)
+
+        print('\n')
+        num_hessian = np.array(num_hessian)
+        print(num_hessian)
+        self.assertTrue(np.allclose(h, num_hessian))
+
+    def test_evaluate_f(self):
         t = 350
         p = 1
         system = self._build_example_reaction_system()
         system.set_keqs(self.keq_data)
         system.set_bi_from_zi(np.array([0.2]*5))
-        lambdas, iters = system.estimate_lambdas_by_fixing_nt(t, p, 0.75, np.array([-1.0]*5))
-        print(f'estimated lambdas={lambdas} in {iters} iterations')
+        system.set_tp(t, p)
+        system.estimate_lambdas_by_fixing_nt(0.75, np.array([-1.0]*5))
+
 
     def _build_example_reaction_system(self):
         monomers = [Component(name, ComponentType.MONOMER, [(name, 1)])

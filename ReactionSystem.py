@@ -33,12 +33,18 @@ class ReactionSystem:
         self._xi = np.zeros(len(self._true_components))
         self._max_iter = max_iter
         self._tol = tol
+        self._t = 0.0
+        self._p = 0.0
+
+    def set_tp(self, t, p):
+        self._t = t
+        self._p = p
+        self.update_mu_by_rt()
 
     def set_bi_from_zi(self, zi):
         self._bi = zi
 
-    def _update_xi(self, t, p):
-        self.update_mu_by_rt(t, p)
+    def _update_xi(self):
         first_term = np.matmul(np.transpose(self._mbg_by_component_matrix), np.transpose(self._lambdas))
         ln_xi = np.transpose(first_term) - self.mu_by_rt
         self._xi = np.exp(ln_xi)
@@ -65,9 +71,9 @@ class ReactionSystem:
         k1, k2 = data
         return np.pow(10.0, k1 + k2/t)
 
-    def update_mu_by_rt(self, t, p_atm):
-        self.update_keqs(t)
-        p_mmhg = p_atm * 760
+    def update_mu_by_rt(self):
+        self.update_keqs(self._t)
+        p_mmhg = self._p * 760
         self.mu_by_rt = np.zeros(len(self._true_components))
         for i, component in enumerate(self._true_components):
             if component.type != ComponentType.DIMER:
@@ -136,17 +142,16 @@ class ReactionSystem:
     def _create_keq_index(self):
         return {name: i for i, name in enumerate(self.dimer_names)}
 
-    def estimate_lambdas_by_fixing_nt(self, t, p, nt, lambdas):
+    def estimate_lambdas_by_fixing_nt(self,nt, lambdas):
         self._lambdas = lambdas
-        self._update_xi(t, p)
-
         for i in range(self._max_iter):
+            self._update_xi()
             q = self._compute_q(nt)
             g = self._compute_q_gradient(nt)
             h = self._compute_q_hessian(nt)
             newton_step = np.matmul(np.linalg.inv(h), -g)
-            damping_factor = self._compute_damping_factor_to_reduce_q(nt,t, p, q, newton_step)
-            if np.linalg.norm(damping_factor*newton_step) < self._tol:
+            damping_factor = self._compute_damping_factor_to_reduce_q(nt, q, newton_step)
+            if np.linalg.norm(damping_factor*newton_step) < 1e-12:
                 return lambdas, i
             lambdas += newton_step*damping_factor
             self._lambdas = lambdas
@@ -169,14 +174,14 @@ class ReactionSystem:
                 ret[j, k] = nt*np.sum(self._mbg_by_component_matrix[j, :]*self._mbg_by_component_matrix[k, :]*self._xi)
         return ret
 
-    def _compute_damping_factor_to_reduce_q(self, nt, t, p, q, newton_step):
+    def _compute_damping_factor_to_reduce_q(self, nt, q, newton_step):
         delta = 1e-10
         factor = 1.0
         current_lambdas = self._lambdas.copy()
         while True:
             new_lambdas = current_lambdas + newton_step*factor
             self._lambdas = new_lambdas
-            self._update_xi(t, p)
+            self._update_xi()
             new_q = self._compute_q(nt)
             if new_q < q + delta or factor < 1e-10:
                 return factor
