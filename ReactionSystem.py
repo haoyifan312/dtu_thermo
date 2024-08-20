@@ -1,6 +1,6 @@
 import dataclasses
 from enum import IntEnum
-from typing import List
+from typing import List, Any
 
 import numpy as np
 
@@ -19,11 +19,14 @@ class Component:
 
 
 class ReactionSystem:
+    _true_components: list[Any]
+
     def __init__(self, app_components: list, max_iter=100, tol=1e-7):
         self.app_components = app_components
         self._mbg = self._extract_material_group()
         self._true_components = self._build_true_components()
         self._mbg_by_component_matrix = self._build_material_group_by_true_components_matrix()
+        # print(self._mbg_by_component_matrix)
         self.keq_data = None
         self.mu_by_rt = np.zeros(len(self._true_components))
         self._keq_index = self._create_keq_index()
@@ -53,9 +56,10 @@ class ReactionSystem:
         self.keq_data = keqs
 
     def update_keqs(self, t):
-        dimer_keqs = {name: self._compute_keq(data, t)
-                                for name, data in self.keq_data.items()}
-        self_dimers = list(dimer_keqs.keys())
+        dimer_keqs = {keq['name']: self._compute_keq(keq['data'], t)
+                                for keq in self.keq_data}
+        self_dimers = [keq['name'] for keq in self.keq_data]
+        # print(self_dimers)
         self_dimer_size = len(self_dimers)
         for i in range(self_dimer_size):
             for j in range(i+1, self_dimer_size):
@@ -137,7 +141,7 @@ class ReactionSystem:
         for component in self.app_components:
             for mbg_name, _ in component.material_balance_group_and_stoi:
                 ret.add(mbg_name)
-        return list(ret)
+        return sorted(list(ret))
 
     def _create_keq_index(self):
         return {name: i for i, name in enumerate(self.dimer_names)}
@@ -145,9 +149,11 @@ class ReactionSystem:
     def estimate_lambdas_by_fixing_nt(self,nt, lambdas):
         self._lambdas = lambdas
         for i in range(self._max_iter):
+            # print(lambdas)
             self._update_xi()
             q = self._compute_q(nt)
             g = self._compute_q_gradient(nt)
+            # print(g)
             h = self._compute_q_hessian(nt)
             newton_step = np.matmul(np.linalg.inv(h), -g)
             damping_factor = self._compute_damping_factor_to_reduce_q(nt, q, newton_step)

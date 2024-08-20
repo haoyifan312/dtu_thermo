@@ -6,12 +6,12 @@ from ReactionSystem import ComponentType, Component, ReactionSystem
 
 
 class TestReactionSystem(unittest.TestCase):
-    keq_data = {
-        'AA': (-10.743, 3083),
-        'BB': (-10.421, 3166),
-        'CC': (-10.843, 3316),
-        'DD': (-10.136, 3079)
-    }
+    keq_data = [
+        {'name': 'AA', 'data': (-10.743, 3083)},
+        {'name': 'BB', 'data': (-10.421, 3166)},
+        {'name': 'CC', 'data': (-10.843, 3316)},
+        {'name': 'DD', 'data': (-10.136, 3079)}
+    ]
 
     def test_components(self):
         A = Component('A', ComponentType.MONOMER, [('A', 1)])
@@ -56,7 +56,7 @@ class TestReactionSystem(unittest.TestCase):
         print(system._xi)
 
     def test_estimate_lambdas(self):
-        t = 350
+        t = 360
         p = 2
         system = self._build_example_reaction_system()
         system.set_keqs(self.keq_data)
@@ -64,8 +64,8 @@ class TestReactionSystem(unittest.TestCase):
         system.set_tp(t, p)
         lambdas, iters = system.estimate_lambdas_by_fixing_nt(0.6, np.array([-1.0]*5))
         print(f'estimated lambdas={lambdas} in {iters} iterations')
-        # self.assertTrue(np.allclose(lambdas, np.array([-2.9390302,  -3.48383727, -3.49053512,
-        #                                                 -3.52103915, -1.32175584])))
+        self.assertTrue(np.allclose(lambdas, np.array([-2.86897603, -3.42159276, -3.41605582, -3.46670241,
+                                                       -1.09861229])))
 
     def test_q_g_hessian(self):
         t = 350
