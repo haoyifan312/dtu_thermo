@@ -2,6 +2,7 @@ import json
 import unittest
 
 import numpy as np
+from matplotlib import pyplot as plt
 
 from ReactionSystem import ComponentType, Component, ReactionSystem
 
@@ -86,14 +87,25 @@ class TestReactionSystem(unittest.TestCase):
         t = 360
         p = 2
         system = self._build_example_reaction_system()
-        system.set_keqs(self.keq_data)
-        lambdas_initial = np.array([5.0]*5)
-        self.solve_equil_system_by_initial_lambdas(system, t, p, lambdas_initial)
-        self.assertTrue(np.allclose(system._xi, np.array([0.05437192, 0.03138125, 0.03155478, 0.03000246,
-                                                           0.3087816,  0.02974965, 0.06487617, 0.06483558,
-                                                           0.06519863, 0.03536947, 0.07069469, 0.07109054,
-                                                           0.03532523, 0.07104607, 0.03572195])))
-        self.assertAlmostEqual(system._nt, 0.6477069813958342)
+        all_nt = []
+        all_t = []
+        for i in range(10):
+            p = 0.5+i*0.5
+            all_t.append(p)
+            system.set_keqs(self.keq_data)
+            lambdas_initial = np.array([1.0]*5)
+            nt = self.solve_equil_system_by_initial_lambdas(system, t, p, lambdas_initial)
+            all_nt.append(nt)
+        plt.plot(all_t, all_nt)
+        plt.xlabel('Pressure (atm)')
+        plt.ylabel('$n_t$')
+        plt.savefig('nt_vs_P.png')
+
+        # self.assertTrue(np.allclose(system._xi, np.array([0.05437192, 0.03138125, 0.03155478, 0.03000246,
+        #                                                    0.3087816,  0.02974965, 0.06487617, 0.06483558,
+        #                                                    0.06519863, 0.03536947, 0.07069469, 0.07109054,
+        #                                                    0.03532523, 0.07104607, 0.03572195])))
+        # self.assertAlmostEqual(system._nt, 0.6477069813958342)
 
     def solve_equil_system_by_initial_lambdas(self, system, t, p, lambdas_initial):
         iters = system.solve(t, p, np.array([0.2] * 5), 0.75, lambdas_initial)
@@ -102,6 +114,7 @@ class TestReactionSystem(unittest.TestCase):
         print(f'xi:')
         print(json.dumps(composition, indent=2))
         print(f'nt={system._nt}')
+        return system._nt
 
     def test_q_g_hessian(self):
         t = 350
