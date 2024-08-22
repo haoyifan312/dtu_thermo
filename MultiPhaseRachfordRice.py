@@ -164,10 +164,11 @@ class MultiPhaseRachfordRice:
 
 
 class SuccessiveSubstitutionForMRR:
-    def __init__(self, stream: ThermclcInterface, n_phases):
+    def __init__(self, stream: ThermclcInterface, n_phases, acceleration=None):
         self._stream = stream
         self.n_phases = n_phases
         self.mrr = MultiPhaseRachfordRice(stream, n_phases)
+        self._acceleration = acceleration
 
     def solve(self, t, p, zi, initial_phi_each_phase):
         self.mrr.set_phi_all(initial_phi_each_phase)
@@ -196,7 +197,8 @@ class SuccessiveSubstitutionForMRR:
         ss = SuccessiveSubstitutionSolver(compute_new_g_fun=update_phis,
                                           converged_fun=None,
                                           compute_for_next_iter=solve_mrr_q_minimization,
-                                          max_iter_reached_fun=None)
+                                          max_iter_reached_fun=None,
+                                          acceleration=self._acceleration)
         ss_iters, ss_result = ss.solve(initial_phi_each_phase, extra_data)
         return self.mrr.get_effective_beta(), ss_iters, extra_data[0]
 

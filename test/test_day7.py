@@ -3,6 +3,8 @@ import unittest
 import numpy as np
 
 from MultiPhaseRachfordRice import *
+from SuccessiveSubstitutionSolver import SSAccelerationDEM, SSAccelerationCriteriaByChange, \
+    SSAccelerationCriteriaByCycle
 from thermclc_interface import init_system, PropertyType
 
 
@@ -119,8 +121,10 @@ class TestMultiPhaseRachfordRice(unittest.TestCase):
 
     def test_all_ss_cases(self):
         ss_mrr = self.create_ss_mrr()
+        ss_mrr_acc = self.create_ss_mrr(acceleration=SSAccelerationDEM(SSAccelerationCriteriaByCycle(5)))
         for i in range(len(self.ts)):
             self._test_ss_mrr_for_case(i, ss_mrr)
+            self._test_ss_mrr_for_case(i, ss_mrr_acc)
 
     def test_ss_to_find_3_phase_t_range(self):
         """ 195.64; 203.3"""
@@ -198,8 +202,8 @@ class TestMultiPhaseRachfordRice(unittest.TestCase):
     def create_mrr(self):
         return MultiPhaseRachfordRice(self.stream, self.n_phases)
 
-    def create_ss_mrr(self):
-        return SuccessiveSubstitutionForMRR(self.stream, self.n_phases)
+    def create_ss_mrr(self, acceleration=None):
+        return SuccessiveSubstitutionForMRR(self.stream, self.n_phases, acceleration=acceleration)
 
     @property
     def inflow_names(self):

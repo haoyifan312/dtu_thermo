@@ -122,6 +122,8 @@ class SuccessiveSubstitutionSolver:
                  acceleration=SSAccelerationDummy()):
         self._max_iter = max_iter
         self._ss_tol = tol
+        if acceleration is None:
+            acceleration = SSAccelerationDummy()
         self._acceleration = acceleration
         self._compute_new_g = compute_new_g_fun
         self._converged_fun = converged_fun
