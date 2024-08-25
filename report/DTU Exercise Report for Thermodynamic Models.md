@@ -3,6 +3,186 @@ Yifan Hao
 
 08/25/2024
 
+## Multiphase flash
+The multiphase flash algorithm is implement in `MultiPhaseRachfordRice` class in `MultiPhaseRachfordRice.py`. The testing programs are written in `TestMultiPhaseRachfordRice` class in `test_day7.py`.
+
+### Q function minimization at givin fugacity coefficient
+The Q function minimization algorithm is first implemented in `MultiPhaseRachfordRice.minimize_q()` function. The total component flow $z_i$, fugacity coefficient in each phase $\phi_i^k$, and initial guess of phase mole fractions $\beta_k$ are setup for the computation. The fugacity coefficients are calculated from Wilson K-factors by assuming vapor phase fugacity coefficients as 1. 
+
+This algorithm is tested in `TestMultiPhaseRachfordRice.test_all_q_minimization_for_initial_guess()` for the 7 temperatures in the example. The optimized $\beta_k$, number of iterations, final gradient $g$, and objective function $Q$ values are printed from the output:
+```
+T=196
+beta=[0.01251599 0.98748401 0.        ]
+g=[0.         0.         0.10107902]
+iters=5
+q=0.007384749324222173
+
+
+T=198
+beta=[0.01251599 0.98748401 0.        ]
+g=[1.11022302e-16 1.11022302e-16 5.13020350e-02]
+iters=5
+q=0.08003948041420383
+
+
+T=200
+beta=[0.01384083 0.98401086 0.00214831]
+g=[0.00000000e+00 1.11022302e-16 1.11022302e-16]
+iters=5
+q=0.15124091112276206
+
+
+T=201
+beta=[0.15741053 0.61353954 0.22904993]
+g=[-2.27018404e-12 -8.35553848e-13 -3.21964677e-14]
+iters=4
+q=0.18304988463622784
+
+
+T=203
+beta=[0.3265771  0.20119413 0.47222877]
+g=[-1.44284584e-11 -1.44257939e-11 -8.39772696e-13]
+iters=4
+q=0.2333524226663093
+
+
+T=204
+beta=[0.38441659 0.06997996 0.54560345]
+g=[1.11022302e-16 2.22044605e-16 3.33066907e-16]
+iters=8
+q=0.25440922467758464
+
+
+T=205
+beta=[0.41508525 0.         0.58491475]
+g=[-1.96862526e-11  4.47503367e-03 -6.22635277e-11]
+iters=4
+q=0.2736899546689442
+```
+
+### Use successive-substitution to solve fugacity coefficient as a function of composition
+Successive-substitution is used on top of the Q function minimization to solve the fugacity coefficient at equilibrium since it is a function of composition in each phase. The algorithm is implemented in `MultiPhaseRachfordRice.solve()` method. `TestMultiPhaseRachfordRice.test_all_ss_cases` tested the all 7 temperatures as given in the example. The output prints the final $\beta_k$, number of successive substitution iteration, and the total number of newton iterations. Successive substitution with acceleration at every 5 cycle is compared for the performance:
+```
+Without successive substitution acceleration
+T=196
+beta=[0.16600628 0.76007701 0.07391672]
+ss iters=61
+newton iters=128
+
+
+With successive substitution acceleration
+T=196
+beta=[0.16600645 0.76007767 0.07391588]
+ss iters=54
+newton iters=113
+
+
+Without successive substitution acceleration
+T=198
+beta=[0.20630343 0.45620026 0.33749631]
+ss iters=78
+newton iters=141
+
+
+With successive substitution acceleration
+T=198
+beta=[0.20630353 0.45620047 0.337496  ]
+ss iters=112
+newton iters=178
+
+
+Without successive substitution acceleration
+T=200
+beta=[0.24212842 0.28488559 0.47298599]
+ss iters=123
+newton iters=207
+
+
+With successive substitution acceleration
+T=200
+beta=[0.24212842 0.28488559 0.47298599]
+ss iters=123
+newton iters=207
+
+
+Without successive substitution acceleration
+T=201
+beta=[0.26410516 0.21906866 0.51682618]
+ss iters=171
+newton iters=273
+
+
+With successive substitution acceleration
+T=201
+beta=[0.26410516 0.21906866 0.51682618]
+ss iters=171
+newton iters=273
+
+
+Without successive substitution acceleration
+T=203
+beta=[0.36565555 0.05647057 0.57787388]
+ss iters=536
+newton iters=708
+
+
+With successive substitution acceleration
+T=203
+beta=[0.36565555 0.05647058 0.57787388]
+ss iters=505
+newton iters=646
+
+
+Without successive substitution acceleration
+T=204
+beta=[0.40777207 0.         0.59222793]
+ss iters=671
+newton iters=111
+
+
+With successive substitution acceleration
+T=204
+beta=[0.40777207 0.         0.59222793]
+ss iters=659
+newton iters=111
+
+
+Without successive substitution acceleration
+T=205
+beta=[0.39826688 0.         0.60173312]
+ss iters=387
+newton iters=90
+
+
+With successive substitution acceleration
+T=205
+beta=[0.39826688 0.         0.60173312]
+ss iters=358
+newton iters=146
+
+```
+
+To identify the temperature range of the 3-phase region, `TestMultiPhaseRachfordRice.test_ss_to_find_3_phase_t_range` runs a temperature survey from 190K to 210K. The 3-phase temperature range is 195.64-203.3K:
+![Three phase beta vs T](plots/multiphase_beta.png)
+
+### Stability analysis
+
+Stability analysis is tested in `TestMultiPhaseRachfordRice.test_stability` for the 7 example temperatures. It uses the `StabilityAnalysis` class from previous exercise. It can be incorporated in multiphase equilibrium solver to test the results when certain phase is excluded at the end. A good initial guess regarding the missing phase is needed along with some administrative code. It't not implemented here.
+
+Tangent plane distance from different phase composition guess
+| Temperature (K) | pure CH4 liquid | pure H2S liquid | ideal gas|
+| --- | --- | --- | --- |
+| 196 | -0.00064 | -0.06868 | -8.88178e-16 |
+| 198 | -0.02263 | -0.06284 | 2.220446e-16 |
+| 200 | -0.04443 | -0.05776 | 8.881784e-16 |
+| 201 | -0.05522 | -0.05550 | -0.05522 |
+| 203 | -0.07652 | -0.05157 | -0.07653 |
+| 204 | -0.08701 | -0.04990 | -0.08701 |
+| 205 | -0.09735 | -0.04843 | -0.09735 |
+
+
+
+
 ## Chemical reaction equilibrium
 The algorithm to calculate reaction equilibrium is implemented in `ReactionSystem.py`. Taking apparent components as input, it first constructs a list of element balance group; based on the apparent components type as monomer or inert, it creates a list of true component by considering the dimers of self- and cross-association. It also creates the $A_{ij}$ , which is the stoichiometry matrix of the true components and element groups.
 
@@ -59,7 +239,9 @@ xi:
 nt=0.6477069813958342
 ```
 
-This algorithm can be tested in more conditions in `TestReactionSystem.test_different_lambdas()`:
+This algorithm can be tested in more conditions in `TestReactionSystem.test_different_lambdas()`. At different conditions, the Newton solver is robust enough to converge within 3-4 iterations, which comes from the estimation method for $\lambda$s.
+
+
 ![total moles of true components vs temperature](plots/nt_vs_T.png)
 
 This plot shows the moles of true components increases with temperature, which means higher temperature decompose the dimers to the monomers.

@@ -1,8 +1,11 @@
 import unittest
 
 import numpy as np
+from matplotlib import pyplot as plt
 
+from RachfordRiceSolver import *
 from MultiPhaseRachfordRice import *
+from StabilityAnalysis import StabilityAnalysis
 from SuccessiveSubstitutionSolver import SSAccelerationDEM, SSAccelerationCriteriaByChange, \
     SSAccelerationCriteriaByCycle
 from thermclc_interface import init_system, PropertyType
@@ -123,25 +126,44 @@ class TestMultiPhaseRachfordRice(unittest.TestCase):
         ss_mrr = self.create_ss_mrr()
         ss_mrr_acc = self.create_ss_mrr(acceleration=SSAccelerationDEM(SSAccelerationCriteriaByCycle(5)))
         for i in range(len(self.ts)):
+            print('Without successive substitution acceleration')
             self._test_ss_mrr_for_case(i, ss_mrr)
+            print('With successive substitution acceleration')
             self._test_ss_mrr_for_case(i, ss_mrr_acc)
 
     def test_ss_to_find_3_phase_t_range(self):
         """ 195.64; 203.3"""
-        t_end = 203.2
-        t_start = 195.6
-        steps = 10
-        step_size = 0.1/10
+        t_end = 210
+        t_start = 190
+        steps = 50
+        step_size = (t_end-t_start)/steps
         ss_mrr = self.create_ss_mrr()
-        for each_start in (t_start, t_end):
-            for i in range(steps+1):
-                t = each_start + step_size*i
-                self._test_ss_mrr_for_tp(ss_mrr, t, self.p)
+        beta_l1 = []
+        beta_l2 = []
+        beta_v = []
+        ts = []
+        for i in range(steps + 1):
+            t = t_start + step_size * i
+            ts.append(t)
+            betas = self._test_ss_mrr_for_tp(ss_mrr, t, self.p)
+            each_beta_l1, each_beta_l2, each_beta_v = betas
+            beta_l1.append(each_beta_l1)
+            beta_l2.append(each_beta_l2)
+            beta_v.append(each_beta_v)
+
+        plt.plot(ts, beta_l1, label='CH4-rich liquid phase')
+        plt.plot(ts, beta_l2, label='H2S-rich liquid phase')
+        plt.plot(ts, beta_v, label='vapor phase')
+        plt.legend()
+        plt.xlabel('Temperature (K)')
+        plt.ylabel(r'$\beta$')
+        plt.ylim((0.0, 1.0))
+        plt.savefig('multiphase beta.png')
 
     def _test_ss_mrr_for_case(self, i, ss_mrr):
         t = self.ts[i]
         p = self.p
-        self._test_ss_mrr_for_tp(ss_mrr, t, p, self.final_beta_gold[i])
+        return self._test_ss_mrr_for_tp(ss_mrr, t, p, self.final_beta_gold[i])
 
     def _test_ss_mrr_for_tp(self, ss_mrr, t, p, gold=None):
         l1_ln_phi = self.get_l1_ln_phi(t, p)
@@ -150,12 +172,46 @@ class TestMultiPhaseRachfordRice(unittest.TestCase):
                                 np.exp(l2_ln_phi),
                                 np.ones(len(self.inflows))])
         beta, iters_ss, iters_newton = ss_mrr.solve(t, p, self.inflow_moles, np.transpose(initial_phi))
-        print(f'\n\nT={t}')
+        print(f'T={t}')
         print(f'beta={beta}')
         print(f'ss iters={iters_ss}')
-        print(f'newton iters={iters_newton}')
+        print(f'newton iters={iters_newton}\n\n')
         if gold is not None:
             self.assertTrue(np.allclose(beta, gold, atol=1e-4))
+        return beta
+
+    def test_stability(self):
+        for i in range(len(self.ts)):
+            self._test_stability_for_case(i)
+
+    def _test_stability_for_case(self, i):
+        t = self.ts[i]
+        p = self.p
+        print(f'\nT={t}\tP={p}')
+
+        print('test stability with H2S pure liquid guess')
+        wi_h2s = np.zeros(len(self.inflow_names))
+        wi_h2s[self.inflow_names.index('H2S')] = 1.0
+        self._test_stability_for_tp(self.stream, FlashInput(t, p, self.inflow_moles), wi_h2s)
+
+        print('test stability with CH4 pure liquid guess')
+        wi_h2s = np.zeros(len(self.inflow_names))
+        wi_h2s[self.inflow_names.index('C1')] = 1.0
+        self._test_stability_for_tp(self.stream, FlashInput(t, p, self.inflow_moles), wi_h2s)
+
+        print('test stability with ideal gas guess')
+        ki = self.stream.all_wilson_ks(t, p, PropertyType.PROPERTY)
+        rr_solver = RachfordRiceBase.create_solver(len(self.inflow_names), RachfordRiceSolverOption.BASE)
+        result = rr_solver.compute(ki, self.inflow_moles)
+        self._test_stability_for_tp(self.stream, FlashInput(t, p, self.inflow_moles), result.ys_or_zs)
+
+    def _test_stability_for_tp(self, stream: ThermclcInterface, flash_input: FlashInput, estimate_wi):
+        acc_by_cycle = SSAccelerationCriteriaByCycle(5)
+        acc = SSAccelerationDEM(acc_by_cycle)
+        sa = StabilityAnalysis(stream, acceleration=acc)
+        sa_result, ss_iters = sa.compute(flash_input, estimate_wi)
+        print(f'Stability analysis: tm={sa_result.distance}, iters={ss_iters}')
+        print(f'Stability analysis: wi={sa_result.wi}\n\n')
 
     def setup_mrr_with_inflow_and_phi_from_wilson(self, mrr, t, p):
         mrr.set_zi(self.inflow_moles)

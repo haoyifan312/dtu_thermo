@@ -1,3 +1,10 @@
+"""
+SRK and Peng-Ronbinson equation of state
+Provided by Prof. Wei Yan for the DTU course:
+Thermodynamic Models: Fundamentals and Computational Aspects
+"""
+
+
 #from numba import jit
 import math
 import numpy as np
