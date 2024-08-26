@@ -160,8 +160,8 @@ class EquilEqnsForSaturationPoint:
     def ln_k_names(self):
         return self.independent_vars[:-2]
 
-    def solve(self, damping_factor=1.0, accept_loose_solution=False):
-        self._solve_x_new_using_successive_substitution()
+    def solve(self, damping_factor=1.0, accept_loose_solution=False, use_init=False):
+        self._solve_x_new_using_successive_substitution(use_init=use_init)
 
         history = []
         del_x_norm = 1
@@ -192,6 +192,7 @@ class EquilEqnsForSaturationPoint:
             effect_del_x = del_x
             effect_del_x = self._get_effective_del_x_to_avoid_overshooting(effect_del_x)
             effect_del_x = self._get_effective_del_x_to_avoid_bounding(effect_del_x)
+            effect_del_x = self._get_effective_del_x_to_avoid_trivial_solution(effect_del_x)
             effect_del_x = effect_del_x*damping_factor
             if np.max(np.abs(last_delx + effect_del_x)) < 0.2: # bouncing
                 effect_del_x *= 0.5
@@ -252,6 +253,7 @@ class EquilEqnsForSaturationPoint:
         t_history = []
         p_history = []
         value_history = []
+        last_succeeded = True
         while True:
             self._plot_tp(p_history, t_history)
             value_history.append(self._independent_var_values.copy())
@@ -270,10 +272,21 @@ class EquilEqnsForSaturationPoint:
                         pass
                     self._update_x_new_from_senstivity(var_name, value, sensitivity)
             try:
-                self.solve(damping_factor=0.5, accept_loose_solution=False)
+                self.solve(damping_factor=0.5, accept_loose_solution=False, use_init=True)
+                last_succeeded = True
+                print(f'liquid phase property phase: {self._ln_phi_l_props.phase.name}')
+                print(f'vapor phase property phase: {self._ln_phi_v_props.phase.name}')
+                if self._ln_phi_l_props.phase == self._ln_phi_v_props.phase:
+                    self.beta = 1.0-self.beta
+                    print(f'flip phase envelope to beta={self.beta}')
+                    last_succeeded = False
             except EquilEqnsForSaturationPointException as e:
                 print(e)
+                self.beta = 1.0 - self.beta
+                last_succeeded = False
+                print(f'flip phase envelope to beta={self.beta}')
                 self._reset_to_old_var_values(value_history[-1])
+
             sensitivity = self.print_var_and_sensitivity()
 
     def _reset_to_old_var_values(self, old_values):
@@ -364,12 +377,12 @@ class EquilEqnsForSaturationPoint:
         with open('trace_input.txt', 'a') as f:
             f.writelines(f'{input_text}\n')
 
-    def _solve_x_new_using_successive_substitution(self):
+    def _solve_x_new_using_successive_substitution(self, use_init=False):
         spec_var = self.independent_vars[self.spec_var_id]
         current_tp = [self.t, self.p]
         current_ks = np.exp(self.lnKi)
         tp, ki, ss_converged = self._solve_by_successive_substitution(self.t, self.p, spec_var,
-                                                        initialization_data=(current_tp, current_ks),
+                                                        initialization_data=(current_tp, current_ks) if use_init else None,
                                                         max_iter=50)
         if self._is_trivial_solution(ki) or not ss_converged:
             tp, ki = self._solve_from_wilson(self.t, self.p, 'T' if spec_var == 'P' else 'P')
@@ -389,5 +402,21 @@ class EquilEqnsForSaturationPoint:
                 factor *= 0.5
             else:
                 break
+        return factor*effect_del_x
+
+    def _get_effective_del_x_to_avoid_trivial_solution(self, effect_del_x):
+        previous_x = self._independent_var_values.copy()
+        factor = 1.0
+        while True:
+            new_x = previous_x + effect_del_x*factor
+            self._independent_var_values = new_x.copy()
+            self._update_dependent_variables()
+            if self._ln_phi_l_props.phase != self._ln_phi_v_props.phase:
+                break
+            if factor < 1e-6:
+                break
+            factor *= 0.5
+
+        self._independent_var_values = previous_x
         return factor*effect_del_x
 

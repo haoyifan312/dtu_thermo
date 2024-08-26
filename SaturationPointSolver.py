@@ -43,7 +43,7 @@ class BubblePointUtilities:
         yi = rr_result.ys_or_zs
         ln_phi_l_props = stream.calc_properties(FlashInput(t, p, zi), PhaseEnum.LIQ)
         ln_phi_v_props = stream.calc_properties(FlashInput(t, p, yi), PhaseEnum.VAP)
-        return ln_phi_l_props - ln_phi_v_props
+        return ln_phi_l_props - ln_phi_v_props, ln_phi_l_props.phase == ln_phi_v_props.phase
 
     def leads_to_trivial_solution(self, stream: ThermclcInterface, t, p, zi: np.array,
                                   rr_result: RachfordRiceResult):
@@ -68,7 +68,7 @@ class DewPointUtilities:
         xi = rr_result.xs_or_zs
         ln_phi_l_props = stream.calc_properties(FlashInput(t, p, xi), PhaseEnum.LIQ)
         ln_phi_v_props = stream.calc_properties(FlashInput(t, p, zi), PhaseEnum.VAP)
-        return ln_phi_l_props - ln_phi_v_props
+        return ln_phi_l_props - ln_phi_v_props, ln_phi_l_props.phase == ln_phi_v_props.phase
 
     def leads_to_trivial_solution(self, stream: ThermclcInterface, t, p, zi: np.array, rr_result: RachfordRiceResult):
         xi = rr_result.xs_or_zs
@@ -235,7 +235,7 @@ class SaturationPointBySuccessiveSubstitution:
         damping_factor = 1.0
         for i in range(self._max_iter):
             free_var_history.append(tp[free_var_index])
-            ln_k_props = self._utilities.ln_k_props_from_ln_phi_diff(self._stream, *tp, zi, rr_result)
+            ln_k_props, is_trivial = self._utilities.ln_k_props_from_ln_phi_diff(self._stream, *tp, zi, rr_result)
             ln_k = ln_k_props.phi  # lnK = ln_phi_l - ln_phi_v
             ki = np.exp(ln_k)
             k_history.append(ki)
@@ -252,7 +252,8 @@ class SaturationPointBySuccessiveSubstitution:
             if abs(f_der) < 1e-7:
                 return tp, ki, i
             newton_step = - f / f_der
-            newton_step = self._get_newton_step_to_avoid_bounding(tp, free_var_index, newton_step, zi, rr_result)
+            newton_step = self._get_newton_step_to_avoid_bounding(tp, free_var_index, newton_step, zi, rr_result,
+                                                                  is_trivial)
             tp[free_var_index] += newton_step * damping_factor
             self._utilities.set_result(rr_result, zi, ki)
         else:
@@ -285,18 +286,18 @@ class SaturationPointBySuccessiveSubstitution:
         plt.yscale('log')
         plt.savefig(plot_file_name)
 
-    def _get_newton_step_to_avoid_bounding(self, tp, free_var_index, newton_step, zi, rr_result):
+    def _get_newton_step_to_avoid_bounding(self, tp, free_var_index, newton_step, zi, rr_result, was_trivial):
         factor = 1.0
         while True:
             tp_copy = tp.copy()
-            effective_newton_step = newton_step*factor
+            effective_newton_step = newton_step * factor
             tp_copy[free_var_index] += effective_newton_step
-            if (tp_copy[free_var_index] > 0.0 and
-                    not self._utilities.leads_to_trivial_solution(self._stream, *tp_copy, zi,
-                                  rr_result)):
+            lead_to_trivial = not was_trivial
+            if not was_trivial:
+                lead_to_trivial = self._utilities.leads_to_trivial_solution(self._stream, *tp_copy, zi,
+                                                                            rr_result)
+            if tp_copy[free_var_index] > 0.0 and not lead_to_trivial:
                 return effective_newton_step
             if factor < 1e-5:
                 return effective_newton_step
             factor *= 0.5
-
-

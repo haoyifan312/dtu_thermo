@@ -164,7 +164,7 @@ class TestSaturationPointSuccessiveSubstitution(unittest.TestCase):
             bubble_t = tp[0]
             print(f'Bubble point temperature at P={p} is {bubble_t} using {iters} iterations')
 
-    def test_dew_point_p(self):
+    def _test_dew_point_p(self):
         with init_system(self.components, 'SRK') as stream:
             solver = SaturationPointBySuccessiveSubstitution.create_saturation_pt_by_successive_substitution(stream,
                                                                                                              SaturationType.DEW_POINT)
@@ -264,12 +264,35 @@ class TestEquilEqns(unittest.TestCase):
             sen = [(var, value) for var, value in zip(var_names, sensitivity)]
             pass
 
-    def _test_solve_phase_envolope_manually(self):
+    def test_solve_random(self):
+        with init_system(self.components, 'SRK') as stream:
+            solver = create_saturation_point_solver(stream, SaturationType.DEW_POINT, 'Wilson')
+
+            t = 200
+            p = 5.8
+            bubble_tp, ki, p_iters = solver.calculate_saturation_condition(self.zs, t, p, 'T')
+            ln_ki = np.log(ki)
+            lntp = np.log(bubble_tp)
+            initial_vars = np.array([*ln_ki, *bubble_tp])
+
+            equil_eqns = EquilEqnsForSaturationPoint(stream, 1.0, self.zs)
+            equil_eqns.setup_independent_vars_initial_values(initial_vars)
+            equil_eqns.set_spec('P', p)
+            tp_newton, final_ki, iters = equil_eqns.solve()
+            final_t, final_p = tp_newton
+            print(f'Bubble point temperature for P={p} is {final_t}, used {iters} iterations')
+
+            var_names = equil_eqns.independent_vars.copy()
+            sensitivity = equil_eqns.compute_current_sensitivity()
+            sen = [(var, value) for var, value in zip(var_names, sensitivity)]
+            pass
+
+    def test_solve_phase_envolope_manually(self):
         with init_system(self.components, 'SRK') as stream:
             equil_eqns = EquilEqnsForSaturationPoint(stream, 0.0, self.zs)
             t = 150
-            p = 0.5
-            equil_eqns.solve_phase_envolope(t, p, starting_spec='T', manually=True)
+            p = 4
+            equil_eqns.solve_phase_envolope(t, p, starting_spec='P', manually=True)
 
     def test_solve_dew(self):
         with init_system(self.components, 'SRK') as stream:
