@@ -308,8 +308,7 @@ class EquilEqnsForSaturationPoint:
         solver = self._create_successive_substitution_solver(max_iter=max_iter)
         converged = False
         try:
-            tp, ki, _ = solver.solve(t, p, self.zi, free_var_name, initialization_data=initialization_data,
-                                     damping_factor=0.5)
+            tp, ki, _ = solver.solve(t, p, self.zi, free_var_name, initialization_data=initialization_data)
             converged = True
         except SaturationPointException as e:
             tp, ki = e.tp_ki

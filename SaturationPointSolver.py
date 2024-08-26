@@ -28,44 +28,61 @@ class SaturationType(IntEnum):
             return SaturationType.BUBBLE_POINT
 
 
-def bubble_point_fun(zi: np.array, ki: np.array):
-    return np.sum(zi * ki) - 1.0
+class BubblePointUtilities:
+    def fun(self, zi: np.array, ki: np.array):
+        return np.sum(zi * ki) - 1.0
+
+    def der(self, zi: np.array, ki: np.array, dlnK_der: np.array):
+        return np.sum(zi * ki * dlnK_der)
+
+    def set_result(self, rr_result: RachfordRiceResult, zi, ki):
+        rr_result.ys = zi * ki
+
+    def ln_k_props_from_ln_phi_diff(self, stream: ThermclcInterface, t, p, zi: np.array,
+                                    rr_result: RachfordRiceResult):
+        yi = rr_result.ys_or_zs
+        ln_phi_l_props = stream.calc_properties(FlashInput(t, p, zi), PhaseEnum.LIQ)
+        ln_phi_v_props = stream.calc_properties(FlashInput(t, p, yi), PhaseEnum.VAP)
+        return ln_phi_l_props - ln_phi_v_props
+
+    def leads_to_trivial_solution(self, stream: ThermclcInterface, t, p, zi: np.array,
+                                  rr_result: RachfordRiceResult):
+        yi = rr_result.ys_or_zs
+        ln_phi_l_props = stream.calc_properties(FlashInput(t, p, zi), PhaseEnum.LIQ)
+        ln_phi_v_props = stream.calc_properties(FlashInput(t, p, yi), PhaseEnum.VAP)
+        return ln_phi_l_props.phase == ln_phi_v_props.phase
 
 
-def bubble_point_der(zi: np.array, ki: np.array, dlnK_der: np.array):
-    return np.sum(zi * ki * dlnK_der)
+class DewPointUtilities:
+    def fun(self, zi: np.array, ki: np.array):
+        return np.sum(zi / ki) - 1.0
 
-def bubble_point_set_result(rr_result: RachfordRiceResult, zi, ki):
-    rr_result.ys = zi*ki
+    def der(self, zi: np.array, ki: np.array, dlnK_der: np.array):
+        return - np.sum(zi / ki * dlnK_der)
 
+    def set_result(self, rr_result: RachfordRiceResult, zi, ki):
+        rr_result.xs = zi / ki
 
-def dew_point_fun(zi: np.array, ki: np.array):
-    return np.sum(zi / ki) - 1.0
+    def ln_k_props_from_ln_phi_diff(self, stream: ThermclcInterface, t, p, zi: np.array,
+                                    rr_result: RachfordRiceResult):
+        xi = rr_result.xs_or_zs
+        ln_phi_l_props = stream.calc_properties(FlashInput(t, p, xi), PhaseEnum.LIQ)
+        ln_phi_v_props = stream.calc_properties(FlashInput(t, p, zi), PhaseEnum.VAP)
+        return ln_phi_l_props - ln_phi_v_props
 
-
-def dew_point_der(zi: np.array, ki: np.array, dlnK_der: np.array):
-    return - np.sum(zi / ki * dlnK_der)
-
-def dew_point_set_result(rr_result: RachfordRiceResult, zi, ki):
-    rr_result.xs = zi/ki
-
-def bubble_point_ln_k_props_from_ln_phi_diff(stream: ThermclcInterface, t, p, zi: np.array, rr_result: RachfordRiceResult):
-    yi = rr_result.ys_or_zs
-    ln_phi_l_props = stream.calc_properties(FlashInput(t, p, zi), PhaseEnum.LIQ)
-    ln_phi_v_props = stream.calc_properties(FlashInput(t, p, yi), PhaseEnum.VAP)
-    return ln_phi_l_props - ln_phi_v_props
-
-
-def dew_point_ln_k_props_from_ln_phi_diff(stream: ThermclcInterface, t, p, zi: np.array, rr_result: RachfordRiceResult):
-    xi = rr_result.xs_or_zs
-    ln_phi_l_props = stream.calc_properties(FlashInput(t, p, xi), PhaseEnum.LIQ)
-    ln_phi_v_props = stream.calc_properties(FlashInput(t, p, zi), PhaseEnum.VAP)
-    return ln_phi_l_props - ln_phi_v_props
+    def leads_to_trivial_solution(self, stream: ThermclcInterface, t, p, zi: np.array, rr_result: RachfordRiceResult):
+        xi = rr_result.xs_or_zs
+        ln_phi_l_props = stream.calc_properties(FlashInput(t, p, xi), PhaseEnum.LIQ)
+        ln_phi_v_props = stream.calc_properties(FlashInput(t, p, zi), PhaseEnum.VAP)
+        return ln_phi_l_props.phase == ln_phi_v_props.phase
 
 
 class BubblePoint:
+    def __init__(self):
+        self._utilities = BubblePointUtilities()
+
     def fun(self, zi: np.array, ki: np.array):
-        return bubble_point_fun(zi, ki)
+        return self._utilities.fun(zi, ki)
 
     def der(self, zi: np.array, ki: np.array, k_ders: np.array):
         return np.sum(zi * k_ders)
@@ -79,8 +96,11 @@ class BubblePointForPhi(BubblePoint):
 
 
 class DewPoint:
+    def __init__(self):
+        self._utilities = DewPointUtilities()
+
     def fun(self, zi: np.array, ki: np.array):
-        return dew_point_fun(zi, ki)
+        return self._utilities.fun(zi, ki)
 
     def der(self, zi: np.array, ki: np.array, k_ders: np.array):
         return - np.sum(zi / ki / ki * k_ders)
@@ -188,19 +208,16 @@ def create_saturation_point_solver(stream: ThermclcInterface, flash_type: Satura
 
 
 class SaturationPointBySuccessiveSubstitution:
-    def __init__(self, stream: ThermclcInterface, gov_eqn, der_eqn, ln_k_fun, set_result_fun, initialization_solver,
+    def __init__(self, stream: ThermclcInterface, utilities, initialization_solver,
                  max_iter=1000, tol=1e-7):
         self._stream = stream
-        self._gov_eqn = gov_eqn
-        self._der_eqn = der_eqn
-        self._ln_k_fun = ln_k_fun
-        self._set_result_fun = set_result_fun
+        self._utilities = utilities
         self._initialization_solver = initialization_solver
         self._rr = RachfordRiceBase.create_solver(stream.inflow_size, RachfordRiceSolverOption.BASE)
         self._max_iter = max_iter
         self._tol = tol
 
-    def solve(self, t, p, zi: np.array, free_var: str, initialization_data=None, damping_factor=1.0, plot_t_vs_k6=None):
+    def solve(self, t, p, zi: np.array, free_var: str, initialization_data=None, plot_t_vs_k6=None):
         if initialization_data is None:
             initial_tp, initial_ks, _ = self._initialization_solver.calculate_saturation_condition(zi, t, p, free_var)
         else:
@@ -215,13 +232,14 @@ class SaturationPointBySuccessiveSubstitution:
         free_var_history = []
         k_history = []
         newton_step = 1.0
+        damping_factor = 1.0
         for i in range(self._max_iter):
             free_var_history.append(tp[free_var_index])
-            ln_k_props = self._ln_k_fun(self._stream, *tp, zi, rr_result)
-            ln_k = ln_k_props.phi   # lnK = ln_phi_l - ln_phi_v
+            ln_k_props = self._utilities.ln_k_props_from_ln_phi_diff(self._stream, *tp, zi, rr_result)
+            ln_k = ln_k_props.phi  # lnK = ln_phi_l - ln_phi_v
             ki = np.exp(ln_k)
             k_history.append(ki)
-            f = self._gov_eqn(zi, ki)
+            f = self._utilities.fun(zi, ki)
             if abs(f) < self._tol and abs(newton_step) < 1e-4:
                 if plot_t_vs_k6 is not None:
                     self._plot_t_vs_k6(free_var_history, k_history, plot_t_vs_k6)
@@ -230,13 +248,13 @@ class SaturationPointBySuccessiveSubstitution:
                 ln_phi_der = ln_k_props.dphi_dt
             elif free_var == 'P':
                 ln_phi_der = ln_k_props.dphi_dp
-            f_der = self._der_eqn(zi, ki, ln_phi_der)
+            f_der = self._utilities.der(zi, ki, ln_phi_der)
             if abs(f_der) < 1e-7:
                 return tp, ki, i
-            newton_step = - f/f_der
-            newton_step = self._get_newton_step_to_avoid_bounding(tp[free_var_index], newton_step)
-            tp[free_var_index] += newton_step*damping_factor
-            self._set_result_fun(rr_result, zi, ki)
+            newton_step = - f / f_der
+            newton_step = self._get_newton_step_to_avoid_bounding(tp, free_var_index, newton_step, zi, rr_result)
+            tp[free_var_index] += newton_step * damping_factor
+            self._utilities.set_result(rr_result, zi, ki)
         else:
             raise SaturationPointException(f'Saturation point did not converge in {i} iterations', tp_ki=(tp, ki))
 
@@ -244,16 +262,12 @@ class SaturationPointBySuccessiveSubstitution:
     def create_saturation_pt_by_successive_substitution(stream: ThermclcInterface, flash_type: SaturationType,
                                                         max_iter=1000):
         if flash_type == SaturationType.BUBBLE_POINT:
-            return SaturationPointBySuccessiveSubstitution(stream, bubble_point_fun, bubble_point_der,
-                                                           bubble_point_ln_k_props_from_ln_phi_diff,
-                                                           bubble_point_set_result,
+            return SaturationPointBySuccessiveSubstitution(stream, BubblePointUtilities(),
                                                            create_saturation_point_solver(stream, flash_type,
                                                                                           'Wilson'),
                                                            max_iter=max_iter)
         elif flash_type == SaturationType.DEW_POINT:
-            return SaturationPointBySuccessiveSubstitution(stream, dew_point_fun, dew_point_der,
-                                                           dew_point_ln_k_props_from_ln_phi_diff,
-                                                           dew_point_set_result,
+            return SaturationPointBySuccessiveSubstitution(stream, DewPointUtilities(),
                                                            create_saturation_point_solver(stream, flash_type,
                                                                                           'Wilson'),
                                                            max_iter=max_iter)
@@ -271,9 +285,18 @@ class SaturationPointBySuccessiveSubstitution:
         plt.yscale('log')
         plt.savefig(plot_file_name)
 
-    def _get_newton_step_to_avoid_bounding(self, orignal_parameter, newton_step):
+    def _get_newton_step_to_avoid_bounding(self, tp, free_var_index, newton_step, zi, rr_result):
         factor = 1.0
         while True:
-            if newton_step*factor + orignal_parameter > 0.0:
-                return newton_step*factor
+            tp_copy = tp.copy()
+            effective_newton_step = newton_step*factor
+            tp_copy[free_var_index] += effective_newton_step
+            if (tp_copy[free_var_index] > 0.0 and
+                    not self._utilities.leads_to_trivial_solution(self._stream, *tp_copy, zi,
+                                  rr_result)):
+                return effective_newton_step
+            if factor < 1e-5:
+                return effective_newton_step
             factor *= 0.5
+
+
