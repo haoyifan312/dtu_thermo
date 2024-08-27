@@ -280,7 +280,7 @@ class SaturationPointBySuccessiveSubstitution:
                 ln_phi_der = ln_k_props.dphi_dp
             f_der = self._utilities.der(zi, ki, ln_phi_der)
             if abs(f_der) < 1e-7:
-                return tp, ki, i
+                return tp, ki, i+1000
             newton_step = - f / f_der
             newton_step = self._get_newton_step_to_avoid_bounding(tp, free_var_index, newton_step, zi, rr_result,
                                                                   is_trivial)
