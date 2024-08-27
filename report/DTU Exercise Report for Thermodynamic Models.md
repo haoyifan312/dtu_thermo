@@ -3,6 +3,221 @@ Yifan Hao
 
 08/25/2024
 
+## Table of Content
+- [Thermodynamic Models: Fundamentals and Computational Aspects - Exercise Report](#thermodynamic-models-fundamentals-and-computational-aspects---exercise-report)
+  - [Table of Content](#table-of-content)
+  - [Rachford-Rice Solver](#rachford-rice-solver)
+    - [Regular Rachford-Rice algorithm](#regular-rachford-rice-algorithm)
+    - [Sloppy Rachford-Rice algorithm](#sloppy-rachford-rice-algorithm)
+    - [Rachford-Rice algorithm with negative-flash](#rachford-rice-algorithm-with-negative-flash)
+  - [PT-flash with successive substitution](#pt-flash-with-successive-substitution)
+  - [Stability analysis](#stability-analysis)
+  - [Thermodynamic model consistency](#thermodynamic-model-consistency)
+    - [Model 1](#model-1)
+    - [Model 2](#model-2)
+    - [Model 3](#model-3)
+  - [Saturation points](#saturation-points)
+    - [Use successive substitution to converge fugacity coefficients](#use-successive-substitution-to-converge-fugacity-coefficients)
+    - [Newton algorithm to trace phase envelope](#newton-algorithm-to-trace-phase-envelope)
+  - [Multiphase flash](#multiphase-flash)
+    - [Q function minimization at givin fugacity coefficient](#q-function-minimization-at-givin-fugacity-coefficient)
+    - [Use successive-substitution to solve fugacity coefficient as a function of composition](#use-successive-substitution-to-solve-fugacity-coefficient-as-a-function-of-composition)
+    - [Stability analysis](#stability-analysis-1)
+  - [Chemical reaction equilibrium](#chemical-reaction-equilibrium)
+    - [Estimate $\\lambda$ values by fixed $n\_t$](#estimate-lambda-values-by-fixed-n_t)
+    - [Solve reaction equilibrium using Newton method](#solve-reaction-equilibrium-using-newton-method)
+
+
+
+## Rachford-Rice Solver
+
+The Rachford-Rice algorithm is implemented in `RachfordRiceSolver.py` and tested in `test_day2.py`.
+
+### Regular Rachford-Rice algorithm
+
+| Temperature | $\beta$ |
+| --- | --- |
+| 190 | 0.0 |
+| 195 | 0.3176 |
+| 200 | 0.7712 |
+| 220 | 0.9521 |
+| 280 | 0.9980 |
+| 300 | 1.0 |
+| 350 | 1.0 |
+
+### Sloppy Rachford-Rice algorithm
+
+| Temperature | $\beta$ |
+| --- | --- |
+| 190 | 0.0 |
+| 195 | 0.3505 |
+| 200 | 0.9747 |
+| 220 | 0.75 |
+| 280 | 0.75 |
+| 300 | 1.0 |
+| 350 | 1.0 |
+
+### Rachford-Rice algorithm with negative-flash
+
+| Temperature | $\beta$ |
+| --- | --- |
+| 190 | -0.1792 |
+| 195 | 0.3176 |
+| 200 | 0.7712 |
+| 220 | 0.9521 |
+| 280 | 0.9980 |
+| 300 | 1.0027 |
+| 350 | 1.0253 |
+
+## PT-flash with successive substitution
+
+The governing equations for two-phase PT flash is implemented in `TwoPhaseFlash.py` utilizing the successive substitution solver from `SuccessiveSubstitutionSolver.py`. It is tested in `test_day3.py`.
+
+The two-phase TP solver is tested with the base version, with acceleration by cycles of 5 iterations, and with acceleration by observing the $\lambda$ not changing. The number of successive substitution iteration, total Rachford-Rice iterations, and number of accelerations are printed from the output:
+
+```
+T=200.0 K; P=5.0 MPa
+		original	acc by cycle	acc by change	sloppy
+beta	0.828295	0.828295	0.828295	0.828293
+iters	32	21	22	23
+rr iters	76	55	57	37
+acc_count	0	4	3	4
+
+
+T=205.0 K; P=5.0 MPa
+		original	acc by cycle	acc by change	sloppy
+beta	0.931927	0.931928	0.931928	0.931927
+iters	25	20	21	19
+rr iters	64	53	56	31
+acc_count	0	4	4	4
+
+
+T=220.0 K; P=5.0 MPa
+		original	acc by cycle	acc by change	sloppy
+beta	0.978091	0.978091	0.978091	0.978091
+iters	15	14	16	17
+rr iters	42	41	42	27
+acc_count	0	2	3	4
+
+
+T=220.0 K; P=7.0 MPa
+		original	acc by cycle	acc by change	sloppy
+beta	0.980920	0.980920	0.980921	0.980920
+iters	34	26	27	25
+rr iters	84	71	73	39
+acc_count	0	5	4	5
+
+
+T=203.0 K; P=5.6 MPa
+		original	acc by cycle	acc by change	sloppy
+beta	0.804739	0.804739	0.804739	0.804738
+iters	60	56	54	62
+rr iters	132	126	121	84
+acc_count	0	11	13	16
+```
+The significance of acceleration does not seem to be very big. Prof. Yan, please suggest whether this seems to be correct or maybe there's mistake in my implementation. Also, any guideline for the General Dominant Eigenvalue Method (GDEM) would be very appreciated. I looked into the original paper from Orbach and Crowe and it's not very clear how to implement a 2nd order GDEM.
+
+There were overshooting issue during acceleration, and now I only apply acceleration when $\lambda$ is between 0.0 to 0.95. 
+
+
+## Stability analysis
+
+The stability analysis is implemented in `StabilityAnalysis.py` and tested in `test_day_4.py`.
+
+All example conditions are tested. Using the regular initial guess from Wilson K-factors or the aggressive K-factors leads to the same converged TPD:
+
+```
+T=180.0		P=4.0
+Stability analysis from vapor estimate: tm=3.3306690738754696e-16, iters=17
+Stability analysis from aggressive vapor estimate: tm=6.661338147750939e-16, iters=17
+Stability analysis from liquid estimate: tm=2.3314683517128287e-15, iters=19
+Stability analysis from aggressive liquid estimate: tm=7.771561172376096e-16, iters=17
+
+T=185.0		P=4.0
+Stability analysis from vapor estimate: tm=0.02036082640172121, iters=9
+Stability analysis from aggressive vapor estimate: tm=0.020360826401721432, iters=9
+Stability analysis from liquid estimate: tm=-8.881784197001252e-16, iters=24
+Stability analysis from aggressive liquid estimate: tm=-1.1102230246251565e-15, iters=22
+
+T=190.0		P=4.0
+Stability analysis from vapor estimate: tm=-0.026073706683419573, iters=6
+Stability analysis from aggressive vapor estimate: tm=-0.02607370668342024, iters=6
+Stability analysis from liquid estimate: tm=-2.220446049250313e-16, iters=52
+Stability analysis from aggressive liquid estimate: tm=1.1102230246251565e-15, iters=51
+
+T=203.0		P=5.5
+Stability analysis from vapor estimate: tm=-0.0020181672403967177, iters=17
+Stability analysis from aggressive vapor estimate: tm=-0.002018167240398272, iters=17
+Stability analysis from liquid estimate: tm=-0.0639002133999107, iters=24
+Stability analysis from aggressive liquid estimate: tm=-0.06390021339990981, iters=22
+
+T=270.0		P=6.0
+Stability analysis from vapor estimate: tm=5.551115123125783e-16, iters=7
+Stability analysis from aggressive vapor estimate: tm=6.661338147750939e-16, iters=6
+Stability analysis from liquid estimate: tm=0.20508370828400702, iters=21
+Stability analysis from aggressive liquid estimate: tm=0.2050837082840088, iters=20
+```
+
+The Dominant Eigenvalue Method is tried to accelerate the successive substitution method, however, the improvement is not significant, maybe due to incorrect implementation.
+
+
+## Thermodynamic model consistency
+
+The consistency check for thermodynamic models is implemented in `ThermoModelConsistencyCheck.py` and tested in `test_day5.py`.
+
+### Model 1
+
+```
+Testing model 1
+ln_phi	dGdni
+-2.5882	-2.5882
+-5.8527	-5.8527
+-7.4130	-7.4130
+-0.6684	-0.6684
+average diff = 2.2952918787844112e-08
+
+d_xlnphi/dP	(Z-1)/P
+-0.2866	-0.2866
+diff = 5.55262884283092e-07
+```
+Both consistency checks are passed.
+
+### Model 2
+
+```
+Testing model 2
+ln_phi	dGdni
+-2.3248	-2.5882
+-5.7335	-5.8527
+-7.6184	-7.4130
+-0.8457	-0.6684
+average diff = 0.1913029785326371
+dG/dni test failed
+
+d_xlnphi/dP	(Z-1)/P
+-0.2866	-0.2866
+diff = 5.55262884283092e-07
+```
+Model 2 failed the consistency check that $ln \phi_i=\partial G^{res}/RT/\partial n_i$
+
+### Model 3
+
+```
+Testing model 3
+ln_phi	dGdni
+-2.5176	-2.5176
+-5.7659	-5.7659
+-7.3290	-7.3290
+-0.6157	-0.6157
+average diff = 7.688798020488719e-08
+
+d_xlnphi/dP	(Z-1)/P
+-0.2620	-0.2865
+diff = 0.02448193798331111
+d_xlnphi/dP test failed
+```
+Model 3 failed the 2nd test.
+
 ## Saturation points
 
 Algorithms regarding saturation point calculations are implemented in `SaturationPointSolver.py`, testing programs are in `test_day6.py`.
@@ -204,6 +419,7 @@ newton iters=146
 ```
 
 To identify the temperature range of the 3-phase region, `TestMultiPhaseRachfordRice.test_ss_to_find_3_phase_t_range` runs a temperature survey from 190K to 210K. The 3-phase temperature range is 195.64-203.3K:
+
 ![Three phase beta vs T](plots/multiphase_beta.png)
 
 ### Stability analysis

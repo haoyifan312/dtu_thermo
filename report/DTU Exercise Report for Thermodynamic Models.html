@@ -1,0 +1,795 @@
+<!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <title>Thermodynamic Models&colon; Fundamentals and Computational Aspects - Exercise Report</title>
+            <style>
+/* From extension vscode.github */
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.vscode-dark img[src$=\#gh-light-mode-only],
+.vscode-light img[src$=\#gh-dark-mode-only],
+.vscode-high-contrast:not(.vscode-high-contrast-light) img[src$=\#gh-light-mode-only],
+.vscode-high-contrast-light img[src$=\#gh-dark-mode-only] {
+	display: none;
+}
+
+</style>
+            <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex/dist/katex.min.css">
+<link href="https://cdn.jsdelivr.net/npm/katex-copytex@latest/dist/katex-copytex.min.css" rel="stylesheet" type="text/css">
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/Microsoft/vscode/extensions/markdown-language-features/media/markdown.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/Microsoft/vscode/extensions/markdown-language-features/media/highlight.css">
+<style>
+            body {
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe WPC', 'Segoe UI', system-ui, 'Ubuntu', 'Droid Sans', sans-serif;
+                font-size: 14px;
+                line-height: 1.6;
+            }
+        </style>
+        <style>
+.task-list-item {
+    list-style-type: none;
+}
+
+.task-list-item-checkbox {
+    margin-left: -20px;
+    vertical-align: middle;
+    pointer-events: none;
+}
+</style>
+<style>
+:root {
+  --color-note: #0969da;
+  --color-tip: #1a7f37;
+  --color-warning: #9a6700;
+  --color-severe: #bc4c00;
+  --color-caution: #d1242f;
+  --color-important: #8250df;
+}
+
+</style>
+<style>
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-note: #2f81f7;
+    --color-tip: #3fb950;
+    --color-warning: #d29922;
+    --color-severe: #db6d28;
+    --color-caution: #f85149;
+    --color-important: #a371f7;
+  }
+}
+
+</style>
+<style>
+.markdown-alert {
+  padding: 0.5rem 1rem;
+  margin-bottom: 16px;
+  color: inherit;
+  border-left: .25em solid #888;
+}
+
+.markdown-alert>:first-child {
+  margin-top: 0
+}
+
+.markdown-alert>:last-child {
+  margin-bottom: 0
+}
+
+.markdown-alert .markdown-alert-title {
+  display: flex;
+  font-weight: 500;
+  align-items: center;
+  line-height: 1
+}
+
+.markdown-alert .markdown-alert-title .octicon {
+  margin-right: 0.5rem;
+  display: inline-block;
+  overflow: visible !important;
+  vertical-align: text-bottom;
+  fill: currentColor;
+}
+
+.markdown-alert.markdown-alert-note {
+  border-left-color: var(--color-note);
+}
+
+.markdown-alert.markdown-alert-note .markdown-alert-title {
+  color: var(--color-note);
+}
+
+.markdown-alert.markdown-alert-important {
+  border-left-color: var(--color-important);
+}
+
+.markdown-alert.markdown-alert-important .markdown-alert-title {
+  color: var(--color-important);
+}
+
+.markdown-alert.markdown-alert-warning {
+  border-left-color: var(--color-warning);
+}
+
+.markdown-alert.markdown-alert-warning .markdown-alert-title {
+  color: var(--color-warning);
+}
+
+.markdown-alert.markdown-alert-tip {
+  border-left-color: var(--color-tip);
+}
+
+.markdown-alert.markdown-alert-tip .markdown-alert-title {
+  color: var(--color-tip);
+}
+
+.markdown-alert.markdown-alert-caution {
+  border-left-color: var(--color-caution);
+}
+
+.markdown-alert.markdown-alert-caution .markdown-alert-title {
+  color: var(--color-caution);
+}
+
+</style>
+        
+        </head>
+        <body class="vscode-body vscode-light">
+            <h1 id="thermodynamic-models-fundamentals-and-computational-aspects---exercise-report">Thermodynamic Models: Fundamentals and Computational Aspects - Exercise Report</h1>
+<p>Yifan Hao</p>
+<p>08/25/2024</p>
+<h2 id="table-of-content">Table of Content</h2>
+<ul>
+<li><a href="#thermodynamic-models-fundamentals-and-computational-aspects---exercise-report">Thermodynamic Models: Fundamentals and Computational Aspects - Exercise Report</a>
+<ul>
+<li><a href="#table-of-content">Table of Content</a></li>
+<li><a href="#rachford-rice-solver">Rachford-Rice Solver</a>
+<ul>
+<li><a href="#regular-rachford-rice-algorithm">Regular Rachford-Rice algorithm</a></li>
+<li><a href="#sloppy-rachford-rice-algorithm">Sloppy Rachford-Rice algorithm</a></li>
+<li><a href="#rachford-rice-algorithm-with-negative-flash">Rachford-Rice algorithm with negative-flash</a></li>
+</ul>
+</li>
+<li><a href="#pt-flash-with-successive-substitution">PT-flash with successive substitution</a></li>
+<li><a href="#stability-analysis">Stability analysis</a></li>
+<li><a href="#thermodynamic-model-consistency">Thermodynamic model consistency</a>
+<ul>
+<li><a href="#model-1">Model 1</a></li>
+<li><a href="#model-2">Model 2</a></li>
+<li><a href="#model-3">Model 3</a></li>
+</ul>
+</li>
+<li><a href="#saturation-points">Saturation points</a>
+<ul>
+<li><a href="#use-successive-substitution-to-converge-fugacity-coefficients">Use successive substitution to converge fugacity coefficients</a></li>
+<li><a href="#newton-algorithm-to-trace-phase-envelope">Newton algorithm to trace phase envelope</a></li>
+</ul>
+</li>
+<li><a href="#multiphase-flash">Multiphase flash</a>
+<ul>
+<li><a href="#q-function-minimization-at-givin-fugacity-coefficient">Q function minimization at givin fugacity coefficient</a></li>
+<li><a href="#use-successive-substitution-to-solve-fugacity-coefficient-as-a-function-of-composition">Use successive-substitution to solve fugacity coefficient as a function of composition</a></li>
+<li><a href="#stability-analysis-1">Stability analysis</a></li>
+</ul>
+</li>
+<li><a href="#chemical-reaction-equilibrium">Chemical reaction equilibrium</a>
+<ul>
+<li><a href="#estimate-lambda-values-by-fixed-n_t">Estimate <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mspace linebreak="newline"></mspace><mi>l</mi><mi>a</mi><mi>m</mi><mi>b</mi><mi>d</mi><mi>a</mi></mrow><annotation encoding="application/x-tex">\\lambda</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="mspace newline"></span><span class="base"><span class="strut" style="height:0.6944em;"></span><span class="mord mathnormal" style="margin-right:0.01968em;">l</span><span class="mord mathnormal">amb</span><span class="mord mathnormal">d</span><span class="mord mathnormal">a</span></span></span></span> values by fixed <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>n</mi><mi mathvariant="normal">_</mi><mi>t</mi></mrow><annotation encoding="application/x-tex">n\_t</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.9251em;vertical-align:-0.31em;"></span><span class="mord mathnormal">n</span><span class="mord" style="margin-right:0.02778em;">_</span><span class="mord mathnormal">t</span></span></span></span></a></li>
+<li><a href="#solve-reaction-equilibrium-using-newton-method">Solve reaction equilibrium using Newton method</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<h2 id="rachford-rice-solver">Rachford-Rice Solver</h2>
+<p>The Rachford-Rice algorithm is implemented in <code>RachfordRiceSolver.py</code> and tested in <code>test_day2.py</code>.</p>
+<h3 id="regular-rachford-rice-algorithm">Regular Rachford-Rice algorithm</h3>
+<table>
+<thead>
+<tr>
+<th>Temperature</th>
+<th><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>β</mi></mrow><annotation encoding="application/x-tex">\beta</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.8889em;vertical-align:-0.1944em;"></span><span class="mord mathnormal" style="margin-right:0.05278em;">β</span></span></span></span></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>190</td>
+<td>0.0</td>
+</tr>
+<tr>
+<td>195</td>
+<td>0.3176</td>
+</tr>
+<tr>
+<td>200</td>
+<td>0.7712</td>
+</tr>
+<tr>
+<td>220</td>
+<td>0.9521</td>
+</tr>
+<tr>
+<td>280</td>
+<td>0.9980</td>
+</tr>
+<tr>
+<td>300</td>
+<td>1.0</td>
+</tr>
+<tr>
+<td>350</td>
+<td>1.0</td>
+</tr>
+</tbody>
+</table>
+<h3 id="sloppy-rachford-rice-algorithm">Sloppy Rachford-Rice algorithm</h3>
+<table>
+<thead>
+<tr>
+<th>Temperature</th>
+<th><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>β</mi></mrow><annotation encoding="application/x-tex">\beta</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.8889em;vertical-align:-0.1944em;"></span><span class="mord mathnormal" style="margin-right:0.05278em;">β</span></span></span></span></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>190</td>
+<td>0.0</td>
+</tr>
+<tr>
+<td>195</td>
+<td>0.3505</td>
+</tr>
+<tr>
+<td>200</td>
+<td>0.9747</td>
+</tr>
+<tr>
+<td>220</td>
+<td>0.75</td>
+</tr>
+<tr>
+<td>280</td>
+<td>0.75</td>
+</tr>
+<tr>
+<td>300</td>
+<td>1.0</td>
+</tr>
+<tr>
+<td>350</td>
+<td>1.0</td>
+</tr>
+</tbody>
+</table>
+<h3 id="rachford-rice-algorithm-with-negative-flash">Rachford-Rice algorithm with negative-flash</h3>
+<table>
+<thead>
+<tr>
+<th>Temperature</th>
+<th><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>β</mi></mrow><annotation encoding="application/x-tex">\beta</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.8889em;vertical-align:-0.1944em;"></span><span class="mord mathnormal" style="margin-right:0.05278em;">β</span></span></span></span></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>190</td>
+<td>-0.1792</td>
+</tr>
+<tr>
+<td>195</td>
+<td>0.3176</td>
+</tr>
+<tr>
+<td>200</td>
+<td>0.7712</td>
+</tr>
+<tr>
+<td>220</td>
+<td>0.9521</td>
+</tr>
+<tr>
+<td>280</td>
+<td>0.9980</td>
+</tr>
+<tr>
+<td>300</td>
+<td>1.0027</td>
+</tr>
+<tr>
+<td>350</td>
+<td>1.0253</td>
+</tr>
+</tbody>
+</table>
+<h2 id="pt-flash-with-successive-substitution">PT-flash with successive substitution</h2>
+<p>The governing equations for two-phase PT flash is implemented in <code>TwoPhaseFlash.py</code> utilizing the successive substitution solver from <code>SuccessiveSubstitutionSolver.py</code>. It is tested in <code>test_day3.py</code>.</p>
+<p>The two-phase TP solver is tested with the base version, with acceleration by cycles of 5 iterations, and with acceleration by observing the <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>λ</mi></mrow><annotation encoding="application/x-tex">\lambda</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.6944em;"></span><span class="mord mathnormal">λ</span></span></span></span> not changing. The number of successive substitution iteration, total Rachford-Rice iterations, and number of accelerations are printed from the output:</p>
+<pre><code>T=200.0 K; P=5.0 MPa
+		original	acc by cycle	acc by change	sloppy
+beta	0.828295	0.828295	0.828295	0.828293
+iters	32	21	22	23
+rr iters	76	55	57	37
+acc_count	0	4	3	4
+
+
+T=205.0 K; P=5.0 MPa
+		original	acc by cycle	acc by change	sloppy
+beta	0.931927	0.931928	0.931928	0.931927
+iters	25	20	21	19
+rr iters	64	53	56	31
+acc_count	0	4	4	4
+
+
+T=220.0 K; P=5.0 MPa
+		original	acc by cycle	acc by change	sloppy
+beta	0.978091	0.978091	0.978091	0.978091
+iters	15	14	16	17
+rr iters	42	41	42	27
+acc_count	0	2	3	4
+
+
+T=220.0 K; P=7.0 MPa
+		original	acc by cycle	acc by change	sloppy
+beta	0.980920	0.980920	0.980921	0.980920
+iters	34	26	27	25
+rr iters	84	71	73	39
+acc_count	0	5	4	5
+
+
+T=203.0 K; P=5.6 MPa
+		original	acc by cycle	acc by change	sloppy
+beta	0.804739	0.804739	0.804739	0.804738
+iters	60	56	54	62
+rr iters	132	126	121	84
+acc_count	0	11	13	16
+</code></pre>
+<p>The significance of acceleration does not seem to be very big. Prof. Yan, please suggest whether this seems to be correct or maybe there's mistake in my implementation. Also, any guideline for the General Dominant Eigenvalue Method (GDEM) would be very appreciated. I looked into the original paper from Orbach and Crowe and it's not very clear how to implement a 2nd order GDEM.</p>
+<p>There were overshooting issue during acceleration, and now I only apply acceleration when <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>λ</mi></mrow><annotation encoding="application/x-tex">\lambda</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.6944em;"></span><span class="mord mathnormal">λ</span></span></span></span> is between 0.0 to 0.95.</p>
+<h2 id="stability-analysis">Stability analysis</h2>
+<p>The stability analysis is implemented in <code>StabilityAnalysis.py</code> and tested in <code>test_day_4.py</code>.</p>
+<p>All example conditions are tested. Using the regular initial guess from Wilson K-factors or the aggressive K-factors leads to the same converged TPD:</p>
+<pre><code>T=180.0		P=4.0
+Stability analysis from vapor estimate: tm=3.3306690738754696e-16, iters=17
+Stability analysis from aggressive vapor estimate: tm=6.661338147750939e-16, iters=17
+Stability analysis from liquid estimate: tm=2.3314683517128287e-15, iters=19
+Stability analysis from aggressive liquid estimate: tm=7.771561172376096e-16, iters=17
+
+T=185.0		P=4.0
+Stability analysis from vapor estimate: tm=0.02036082640172121, iters=9
+Stability analysis from aggressive vapor estimate: tm=0.020360826401721432, iters=9
+Stability analysis from liquid estimate: tm=-8.881784197001252e-16, iters=24
+Stability analysis from aggressive liquid estimate: tm=-1.1102230246251565e-15, iters=22
+
+T=190.0		P=4.0
+Stability analysis from vapor estimate: tm=-0.026073706683419573, iters=6
+Stability analysis from aggressive vapor estimate: tm=-0.02607370668342024, iters=6
+Stability analysis from liquid estimate: tm=-2.220446049250313e-16, iters=52
+Stability analysis from aggressive liquid estimate: tm=1.1102230246251565e-15, iters=51
+
+T=203.0		P=5.5
+Stability analysis from vapor estimate: tm=-0.0020181672403967177, iters=17
+Stability analysis from aggressive vapor estimate: tm=-0.002018167240398272, iters=17
+Stability analysis from liquid estimate: tm=-0.0639002133999107, iters=24
+Stability analysis from aggressive liquid estimate: tm=-0.06390021339990981, iters=22
+
+T=270.0		P=6.0
+Stability analysis from vapor estimate: tm=5.551115123125783e-16, iters=7
+Stability analysis from aggressive vapor estimate: tm=6.661338147750939e-16, iters=6
+Stability analysis from liquid estimate: tm=0.20508370828400702, iters=21
+Stability analysis from aggressive liquid estimate: tm=0.2050837082840088, iters=20
+</code></pre>
+<p>The Dominant Eigenvalue Method is tried to accelerate the successive substitution method, however, the improvement is not significant, maybe due to incorrect implementation.</p>
+<h2 id="thermodynamic-model-consistency">Thermodynamic model consistency</h2>
+<p>The consistency check for thermodynamic models is implemented in <code>ThermoModelConsistencyCheck.py</code> and tested in <code>test_day5.py</code>.</p>
+<h3 id="model-1">Model 1</h3>
+<pre><code>Testing model 1
+ln_phi	dGdni
+-2.5882	-2.5882
+-5.8527	-5.8527
+-7.4130	-7.4130
+-0.6684	-0.6684
+average diff = 2.2952918787844112e-08
+
+d_xlnphi/dP	(Z-1)/P
+-0.2866	-0.2866
+diff = 5.55262884283092e-07
+</code></pre>
+<p>Both consistency checks are passed.</p>
+<h3 id="model-2">Model 2</h3>
+<pre><code>Testing model 2
+ln_phi	dGdni
+-2.3248	-2.5882
+-5.7335	-5.8527
+-7.6184	-7.4130
+-0.8457	-0.6684
+average diff = 0.1913029785326371
+dG/dni test failed
+
+d_xlnphi/dP	(Z-1)/P
+-0.2866	-0.2866
+diff = 5.55262884283092e-07
+</code></pre>
+<p>Model 2 failed the consistency check that <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>l</mi><mi>n</mi><msub><mi>ϕ</mi><mi>i</mi></msub><mo>=</mo><mi mathvariant="normal">∂</mi><msup><mi>G</mi><mrow><mi>r</mi><mi>e</mi><mi>s</mi></mrow></msup><mi mathvariant="normal">/</mi><mi>R</mi><mi>T</mi><mi mathvariant="normal">/</mi><mi mathvariant="normal">∂</mi><msub><mi>n</mi><mi>i</mi></msub></mrow><annotation encoding="application/x-tex">ln \phi_i=\partial G^{res}/RT/\partial n_i</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.8889em;vertical-align:-0.1944em;"></span><span class="mord mathnormal" style="margin-right:0.01968em;">l</span><span class="mord mathnormal">n</span><span class="mord"><span class="mord mathnormal">ϕ</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.3117em;"><span style="top:-2.55em;margin-left:0em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mathnormal mtight">i</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.15em;"><span></span></span></span></span></span></span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="base"><span class="strut" style="height:1em;vertical-align:-0.25em;"></span><span class="mord" style="margin-right:0.05556em;">∂</span><span class="mord"><span class="mord mathnormal">G</span><span class="msupsub"><span class="vlist-t"><span class="vlist-r"><span class="vlist" style="height:0.6644em;"><span style="top:-3.063em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mathnormal mtight">res</span></span></span></span></span></span></span></span></span><span class="mord">/</span><span class="mord mathnormal" style="margin-right:0.13889em;">RT</span><span class="mord">/</span><span class="mord" style="margin-right:0.05556em;">∂</span><span class="mord"><span class="mord mathnormal">n</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.3117em;"><span style="top:-2.55em;margin-left:0em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mathnormal mtight">i</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.15em;"><span></span></span></span></span></span></span></span></span></span></p>
+<h3 id="model-3">Model 3</h3>
+<pre><code>Testing model 3
+ln_phi	dGdni
+-2.5176	-2.5176
+-5.7659	-5.7659
+-7.3290	-7.3290
+-0.6157	-0.6157
+average diff = 7.688798020488719e-08
+
+d_xlnphi/dP	(Z-1)/P
+-0.2620	-0.2865
+diff = 0.02448193798331111
+d_xlnphi/dP test failed
+</code></pre>
+<p>Model 3 failed the 2nd test.</p>
+<h2 id="saturation-points">Saturation points</h2>
+<p>Algorithms regarding saturation point calculations are implemented in <code>SaturationPointSolver.py</code>, testing programs are in <code>test_day6.py</code>.</p>
+<h3 id="use-successive-substitution-to-converge-fugacity-coefficients">Use successive substitution to converge fugacity coefficients</h3>
+<p>Solving initial guess of saturation points based on Chapter 12, Eq (1) and (2) are implemented in <code>BubblePoint</code> and <code>DewPoint</code> classes. The successive substitution solver for Eq (3) is in <code>SaturationPointBySuccessiveSubstitution</code> class.</p>
+<p><code>TestSaturationPointSuccessiveSubstitution</code> class has multiple tests for to solve bubble point and dew point temperature and pressure.</p>
+<p>The table below shows how close the bubble point solver can get to the critical point:</p>
+<table>
+<thead>
+<tr>
+<th>Pressure (MPa)</th>
+<th>Bubble point temperature (K)</th>
+<th>number of iterations</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>5.5</td>
+<td>199.96</td>
+<td>19</td>
+</tr>
+<tr>
+<td>5.6</td>
+<td>200.79</td>
+<td>30</td>
+</tr>
+<tr>
+<td>5.7</td>
+<td>201.61</td>
+<td>50</td>
+</tr>
+<tr>
+<td>5.8</td>
+<td>202.43</td>
+<td>93</td>
+</tr>
+<tr>
+<td>5.9</td>
+<td>203.26</td>
+<td>171</td>
+</tr>
+<tr>
+<td>6.0</td>
+<td>204.11</td>
+<td>260</td>
+</tr>
+<tr>
+<td>6.1</td>
+<td>205.11</td>
+<td>47</td>
+</tr>
+</tbody>
+</table>
+<p>Firstly, the number of iteration increases significantly when it is close to the critical point. Secondly, this algorithm seems to be able to pass the critical point, and trace the dew point line. My suspect is <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msup><mi>ϕ</mi><mi>l</mi></msup></mrow><annotation encoding="application/x-tex">\phi^l</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:1.0435em;vertical-align:-0.1944em;"></span><span class="mord"><span class="mord mathnormal">ϕ</span><span class="msupsub"><span class="vlist-t"><span class="vlist-r"><span class="vlist" style="height:0.8491em;"><span style="top:-3.063em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mathnormal mtight" style="margin-right:0.01968em;">l</span></span></span></span></span></span></span></span></span></span></span> and <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msup><mi>ϕ</mi><mi>v</mi></msup></mrow><annotation encoding="application/x-tex">\phi^v</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.8889em;vertical-align:-0.1944em;"></span><span class="mord"><span class="mord mathnormal">ϕ</span><span class="msupsub"><span class="vlist-t"><span class="vlist-r"><span class="vlist" style="height:0.6644em;"><span style="top:-3.063em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mathnormal mtight" style="margin-right:0.03588em;">v</span></span></span></span></span></span></span></span></span></span></span> are reverted, therefore density of the calculated incipient phase become liquid density.</p>
+<p>Here is a plot of convergence pattern of <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>T</mi></mrow><annotation encoding="application/x-tex">T</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.6833em;"></span><span class="mord mathnormal" style="margin-right:0.13889em;">T</span></span></span></span> vs <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>K</mi><mn>6</mn></msub></mrow><annotation encoding="application/x-tex">K_6</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.8333em;vertical-align:-0.15em;"></span><span class="mord"><span class="mord mathnormal" style="margin-right:0.07153em;">K</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.3011em;"><span style="top:-2.55em;margin-left:-0.0715em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight">6</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.15em;"><span></span></span></span></span></span></span></span></span></span>, and convergence of T is 2nd order faster than <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>K</mi><mn>6</mn></msub></mrow><annotation encoding="application/x-tex">K_6</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.8333em;vertical-align:-0.15em;"></span><span class="mord"><span class="mord mathnormal" style="margin-right:0.07153em;">K</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.3011em;"><span style="top:-2.55em;margin-left:-0.0715em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight">6</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.15em;"><span></span></span></span></span></span></span></span></span></span>.</p>
+<p><img src="file:///c:\pyProject\DTU\Exercises\Yifan\dtu_thermo\report\plots\t_vs_k6.png" alt="T vs K6"></p>
+<p>The algorithm is able to find the maximum dew point pressure at T=235.16K and P=8.21MPa. To calculate dew point temperature with higher pressure, the Newton algorithm is stuck with very small newton step but function value cannot be converged.</p>
+<h3 id="newton-algorithm-to-trace-phase-envelope">Newton algorithm to trace phase envelope</h3>
+<p>The Newton solver for saturation point is implement in <code>EquilEqnsForSaturationPoint</code> class, and it will call the successive substitution solver first to generate the initial guess.</p>
+<p><code>EquilEqnsForSaturationPoint.solve_phase_envolope()</code> tries to generate the whole phase envelope from a starting point, and based on the sensitivity to move forward. There's a manual option and also an automatic option. However, I was not able to jump through the critical point. After the critical point, if I flip the <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>b</mi><mi>e</mi><mi>t</mi><mi>a</mi></mrow><annotation encoding="application/x-tex">beta</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.6944em;"></span><span class="mord mathnormal">b</span><span class="mord mathnormal">e</span><span class="mord mathnormal">t</span><span class="mord mathnormal">a</span></span></span></span> from 0 to 1, it turns to converge to the right side of the dew point curve. The plot below was generated by calculating from two sides of the phase envelope:</p>
+<p><img src="file:///c:\pyProject\DTU\Exercises\Yifan\dtu_thermo\report\plots\phase_envelope.png" alt="phase envelope"></p>
+<h2 id="multiphase-flash">Multiphase flash</h2>
+<p>The multiphase flash algorithm is implement in <code>MultiPhaseRachfordRice</code> class in <code>MultiPhaseRachfordRice.py</code>. The testing programs are written in <code>TestMultiPhaseRachfordRice</code> class in <code>test_day7.py</code>. They are tested in <code>TestEquilEqns</code> class.</p>
+<p>The biggest challenges I encountered was for both successive substitution and Newton solvers, the projecting temperature or pressure will overshoot to trivial solution region, where fugacity for both phase are the same. It will lead to trivial solution (all <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>K</mi></mrow><annotation encoding="application/x-tex">K</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.6833em;"></span><span class="mord mathnormal" style="margin-right:0.07153em;">K</span></span></span></span>=1) for the successive substitution solver, or oscillating convergence for the Newton solver. I tried to detect the trivial solution and apply damping factor, this can guarantee the successive substitution to create a good initial guess, and Newton solver will usually converge with very small number of iterations.</p>
+<h3 id="q-function-minimization-at-givin-fugacity-coefficient">Q function minimization at givin fugacity coefficient</h3>
+<p>The Q function minimization algorithm is first implemented in <code>MultiPhaseRachfordRice.minimize_q()</code> function. The total component flow <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>z</mi><mi>i</mi></msub></mrow><annotation encoding="application/x-tex">z_i</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.5806em;vertical-align:-0.15em;"></span><span class="mord"><span class="mord mathnormal" style="margin-right:0.04398em;">z</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.3117em;"><span style="top:-2.55em;margin-left:-0.044em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mathnormal mtight">i</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.15em;"><span></span></span></span></span></span></span></span></span></span>, fugacity coefficient in each phase <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msubsup><mi>ϕ</mi><mi>i</mi><mi>k</mi></msubsup></mrow><annotation encoding="application/x-tex">\phi_i^k</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:1.1078em;vertical-align:-0.2587em;"></span><span class="mord"><span class="mord mathnormal">ϕ</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.8491em;"><span style="top:-2.4413em;margin-left:0em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mathnormal mtight">i</span></span></span><span style="top:-3.063em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mathnormal mtight" style="margin-right:0.03148em;">k</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.2587em;"><span></span></span></span></span></span></span></span></span></span>, and initial guess of phase mole fractions <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>β</mi><mi>k</mi></msub></mrow><annotation encoding="application/x-tex">\beta_k</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.8889em;vertical-align:-0.1944em;"></span><span class="mord"><span class="mord mathnormal" style="margin-right:0.05278em;">β</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.3361em;"><span style="top:-2.55em;margin-left:-0.0528em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mathnormal mtight" style="margin-right:0.03148em;">k</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.15em;"><span></span></span></span></span></span></span></span></span></span> are setup for the computation. The fugacity coefficients are calculated from Wilson K-factors by assuming vapor phase fugacity coefficients as 1.</p>
+<p>This algorithm is tested in <code>TestMultiPhaseRachfordRice.test_all_q_minimization_for_initial_guess()</code> for the 7 temperatures in the example. The optimized <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>β</mi><mi>k</mi></msub></mrow><annotation encoding="application/x-tex">\beta_k</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.8889em;vertical-align:-0.1944em;"></span><span class="mord"><span class="mord mathnormal" style="margin-right:0.05278em;">β</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.3361em;"><span style="top:-2.55em;margin-left:-0.0528em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mathnormal mtight" style="margin-right:0.03148em;">k</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.15em;"><span></span></span></span></span></span></span></span></span></span>, number of iterations, final gradient <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>g</mi></mrow><annotation encoding="application/x-tex">g</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.625em;vertical-align:-0.1944em;"></span><span class="mord mathnormal" style="margin-right:0.03588em;">g</span></span></span></span>, and objective function <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>Q</mi></mrow><annotation encoding="application/x-tex">Q</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.8778em;vertical-align:-0.1944em;"></span><span class="mord mathnormal">Q</span></span></span></span> values are printed from the output:</p>
+<pre><code>T=196
+beta=[0.01251599 0.98748401 0.        ]
+g=[0.         0.         0.10107902]
+iters=5
+q=0.007384749324222173
+
+
+T=198
+beta=[0.01251599 0.98748401 0.        ]
+g=[1.11022302e-16 1.11022302e-16 5.13020350e-02]
+iters=5
+q=0.08003948041420383
+
+
+T=200
+beta=[0.01384083 0.98401086 0.00214831]
+g=[0.00000000e+00 1.11022302e-16 1.11022302e-16]
+iters=5
+q=0.15124091112276206
+
+
+T=201
+beta=[0.15741053 0.61353954 0.22904993]
+g=[-2.27018404e-12 -8.35553848e-13 -3.21964677e-14]
+iters=4
+q=0.18304988463622784
+
+
+T=203
+beta=[0.3265771  0.20119413 0.47222877]
+g=[-1.44284584e-11 -1.44257939e-11 -8.39772696e-13]
+iters=4
+q=0.2333524226663093
+
+
+T=204
+beta=[0.38441659 0.06997996 0.54560345]
+g=[1.11022302e-16 2.22044605e-16 3.33066907e-16]
+iters=8
+q=0.25440922467758464
+
+
+T=205
+beta=[0.41508525 0.         0.58491475]
+g=[-1.96862526e-11  4.47503367e-03 -6.22635277e-11]
+iters=4
+q=0.2736899546689442
+</code></pre>
+<h3 id="use-successive-substitution-to-solve-fugacity-coefficient-as-a-function-of-composition">Use successive-substitution to solve fugacity coefficient as a function of composition</h3>
+<p>Successive-substitution is used on top of the Q function minimization to solve the fugacity coefficient at equilibrium since it is a function of composition in each phase. The algorithm is implemented in <code>MultiPhaseRachfordRice.solve()</code> method. <code>TestMultiPhaseRachfordRice.test_all_ss_cases</code> tested the all 7 temperatures as given in the example. The output prints the final <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>β</mi><mi>k</mi></msub></mrow><annotation encoding="application/x-tex">\beta_k</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.8889em;vertical-align:-0.1944em;"></span><span class="mord"><span class="mord mathnormal" style="margin-right:0.05278em;">β</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.3361em;"><span style="top:-2.55em;margin-left:-0.0528em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mathnormal mtight" style="margin-right:0.03148em;">k</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.15em;"><span></span></span></span></span></span></span></span></span></span>, number of successive substitution iteration, and the total number of newton iterations. Successive substitution with acceleration at every 5 cycle is compared for the performance:</p>
+<pre><code>Without successive substitution acceleration
+T=196
+beta=[0.16600628 0.76007701 0.07391672]
+ss iters=61
+newton iters=128
+
+
+With successive substitution acceleration
+T=196
+beta=[0.16600645 0.76007767 0.07391588]
+ss iters=54
+newton iters=113
+
+
+Without successive substitution acceleration
+T=198
+beta=[0.20630343 0.45620026 0.33749631]
+ss iters=78
+newton iters=141
+
+
+With successive substitution acceleration
+T=198
+beta=[0.20630353 0.45620047 0.337496  ]
+ss iters=112
+newton iters=178
+
+
+Without successive substitution acceleration
+T=200
+beta=[0.24212842 0.28488559 0.47298599]
+ss iters=123
+newton iters=207
+
+
+With successive substitution acceleration
+T=200
+beta=[0.24212842 0.28488559 0.47298599]
+ss iters=123
+newton iters=207
+
+
+Without successive substitution acceleration
+T=201
+beta=[0.26410516 0.21906866 0.51682618]
+ss iters=171
+newton iters=273
+
+
+With successive substitution acceleration
+T=201
+beta=[0.26410516 0.21906866 0.51682618]
+ss iters=171
+newton iters=273
+
+
+Without successive substitution acceleration
+T=203
+beta=[0.36565555 0.05647057 0.57787388]
+ss iters=536
+newton iters=708
+
+
+With successive substitution acceleration
+T=203
+beta=[0.36565555 0.05647058 0.57787388]
+ss iters=505
+newton iters=646
+
+
+Without successive substitution acceleration
+T=204
+beta=[0.40777207 0.         0.59222793]
+ss iters=671
+newton iters=111
+
+
+With successive substitution acceleration
+T=204
+beta=[0.40777207 0.         0.59222793]
+ss iters=659
+newton iters=111
+
+
+Without successive substitution acceleration
+T=205
+beta=[0.39826688 0.         0.60173312]
+ss iters=387
+newton iters=90
+
+
+With successive substitution acceleration
+T=205
+beta=[0.39826688 0.         0.60173312]
+ss iters=358
+newton iters=146
+
+</code></pre>
+<p>To identify the temperature range of the 3-phase region, <code>TestMultiPhaseRachfordRice.test_ss_to_find_3_phase_t_range</code> runs a temperature survey from 190K to 210K. The 3-phase temperature range is 195.64-203.3K:</p>
+<p><img src="file:///c:\pyProject\DTU\Exercises\Yifan\dtu_thermo\report\plots\multiphase_beta.png" alt="Three phase beta vs T"></p>
+<h3 id="stability-analysis-1">Stability analysis</h3>
+<p>Stability analysis is tested in <code>TestMultiPhaseRachfordRice.test_stability</code> for the 7 example temperatures. It uses the <code>StabilityAnalysis</code> class from previous exercise. It can be incorporated in multiphase equilibrium solver to test the results when certain phase is excluded at the end. A good initial guess regarding the missing phase is needed along with some administrative code. It't not implemented here.</p>
+<p>Tangent plane distance from different phase composition guess</p>
+<table>
+<thead>
+<tr>
+<th>Temperature (K)</th>
+<th>pure CH4 liquid</th>
+<th>pure H2S liquid</th>
+<th>ideal gas</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>196</td>
+<td>-0.00064</td>
+<td>-0.06868</td>
+<td>-8.88178e-16</td>
+</tr>
+<tr>
+<td>198</td>
+<td>-0.02263</td>
+<td>-0.06284</td>
+<td>2.220446e-16</td>
+</tr>
+<tr>
+<td>200</td>
+<td>-0.04443</td>
+<td>-0.05776</td>
+<td>8.881784e-16</td>
+</tr>
+<tr>
+<td>201</td>
+<td>-0.05522</td>
+<td>-0.05550</td>
+<td>-0.05522</td>
+</tr>
+<tr>
+<td>203</td>
+<td>-0.07652</td>
+<td>-0.05157</td>
+<td>-0.07653</td>
+</tr>
+<tr>
+<td>204</td>
+<td>-0.08701</td>
+<td>-0.04990</td>
+<td>-0.08701</td>
+</tr>
+<tr>
+<td>205</td>
+<td>-0.09735</td>
+<td>-0.04843</td>
+<td>-0.09735</td>
+</tr>
+</tbody>
+</table>
+<h2 id="chemical-reaction-equilibrium">Chemical reaction equilibrium</h2>
+<p>The algorithm to calculate reaction equilibrium is implemented in <code>ReactionSystem.py</code>. Taking apparent components as input, it first constructs a list of element balance group; based on the apparent components type as monomer or inert, it creates a list of true component by considering the dimers of self- and cross-association. It also creates the <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>A</mi><mrow><mi>i</mi><mi>j</mi></mrow></msub></mrow><annotation encoding="application/x-tex">A_{ij}</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.9694em;vertical-align:-0.2861em;"></span><span class="mord"><span class="mord mathnormal">A</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.3117em;"><span style="top:-2.55em;margin-left:0em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mathnormal mtight" style="margin-right:0.05724em;">ij</span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.2861em;"><span></span></span></span></span></span></span></span></span></span> , which is the stoichiometry matrix of the true components and element groups.</p>
+<p>The other input is the reaction equilibrium constant coefficients of self-association dimerization reactions.  It
+generates the function to calculate equilibrium constant and dimer chemical potentials.</p>
+<h3 id="estimate-lambda-values-by-fixed-n_t">Estimate <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>λ</mi></mrow><annotation encoding="application/x-tex">\lambda</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.6944em;"></span><span class="mord mathnormal">λ</span></span></span></span> values by fixed <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>n</mi><mi>t</mi></msub></mrow><annotation encoding="application/x-tex">n_t</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.5806em;vertical-align:-0.15em;"></span><span class="mord"><span class="mord mathnormal">n</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.2806em;"><span style="top:-2.55em;margin-left:0em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mathnormal mtight">t</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.15em;"><span></span></span></span></span></span></span></span></span></span></h3>
+<p>The first algorithm implemented in this class is <code>ReactionSystem.estimate_lambdas_by_fixing_nt(nt, lambdas)</code>, this function can be called after temperature, pressure, and apparent component molar flow are setup. It takes inputs of the fixed total moles of true components, and the initial guess of the <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>λ</mi></mrow><annotation encoding="application/x-tex">\lambda</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.6944em;"></span><span class="mord mathnormal">λ</span></span></span></span> values. The algorithm to minimize <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>Q</mi></mrow><annotation encoding="application/x-tex">Q</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.8778em;vertical-align:-0.1944em;"></span><span class="mord mathnormal">Q</span></span></span></span> function is implemented here.</p>
+<p>Test of this function is in <code>TestReactionSystem.test_solve_lambdas_and_nt()</code> in <code>test_day9.py</code>. In the test, <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>T</mi><mo>=</mo><mn>360</mn><mi>K</mi></mrow><annotation encoding="application/x-tex">T=360 K</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.6833em;"></span><span class="mord mathnormal" style="margin-right:0.13889em;">T</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="base"><span class="strut" style="height:0.6833em;"></span><span class="mord">360</span><span class="mord mathnormal" style="margin-right:0.07153em;">K</span></span></span></span> and <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>P</mi><mo>=</mo><mn>2</mn><mi>a</mi><mi>t</mi><mi>m</mi></mrow><annotation encoding="application/x-tex">P=2 atm</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.6833em;"></span><span class="mord mathnormal" style="margin-right:0.13889em;">P</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="base"><span class="strut" style="height:0.6444em;"></span><span class="mord">2</span><span class="mord mathnormal">a</span><span class="mord mathnormal">t</span><span class="mord mathnormal">m</span></span></span></span> is setup to duplicate results at the end. The printed output:</p>
+<pre><code>estimated lambdas=[-2.99465699 -3.53831473 -3.53284552 -3.58288624 -1.32175584] in 9 iterations
+</code></pre>
+<p><code>TestReactionSystem.test_different_lambdas()</code> can be used to test different initial guess of $\lambda$s for the optional questions. Here lists a few of the different initial guesses and their impact on the convergence:</p>
+<table>
+<thead>
+<tr>
+<th><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>λ</mi><mn>1</mn></msub><mo>−</mo><msub><mi>λ</mi><mn>5</mn></msub></mrow><annotation encoding="application/x-tex">\lambda_1-\lambda_5</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.8444em;vertical-align:-0.15em;"></span><span class="mord"><span class="mord mathnormal">λ</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.3011em;"><span style="top:-2.55em;margin-left:0em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight">1</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.15em;"><span></span></span></span></span></span></span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">−</span><span class="mspace" style="margin-right:0.2222em;"></span></span><span class="base"><span class="strut" style="height:0.8444em;vertical-align:-0.15em;"></span><span class="mord"><span class="mord mathnormal">λ</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.3011em;"><span style="top:-2.55em;margin-left:0em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight">5</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.15em;"><span></span></span></span></span></span></span></span></span></span></th>
+<th>number of iterations</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>-100</td>
+<td>NA</td>
+</tr>
+<tr>
+<td>-10</td>
+<td>7</td>
+</tr>
+<tr>
+<td>-5</td>
+<td>6</td>
+</tr>
+<tr>
+<td>-1</td>
+<td>9</td>
+</tr>
+<tr>
+<td>0</td>
+<td>11</td>
+</tr>
+<tr>
+<td>1</td>
+<td>13</td>
+</tr>
+<tr>
+<td>5</td>
+<td>21</td>
+</tr>
+<tr>
+<td>10</td>
+<td>31</td>
+</tr>
+<tr>
+<td>100</td>
+<td>NA</td>
+</tr>
+</tbody>
+</table>
+<p>Overall, negative initial values for $\lambda$s takes less iterations to converge, and once they converge, the final estimated <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>λ</mi></mrow><annotation encoding="application/x-tex">\lambda</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.6944em;"></span><span class="mord mathnormal">λ</span></span></span></span> values are the same. When the initial guesses are too big or too small, the algorithm failed to converge, either due to invalid math operation of <code>exp</code> on very large number, or the compositions calculated from such initial guesses are too small, and the hessian matrix is very ill-conditioned to move the Newton method.</p>
+<h3 id="solve-reaction-equilibrium-using-newton-method">Solve reaction equilibrium using Newton method</h3>
+<p>The final Newton solver is implemented in <code>ReactionSystem.solve(t, p, zi, initial_nt, initial_lambdas)</code>. It calls <code>ReactionSystem.estimate_lambdas_by_fixing_nt(nt, lambdas)</code> first to estimate the <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>λ</mi></mrow><annotation encoding="application/x-tex">\lambda</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.6944em;"></span><span class="mord mathnormal">λ</span></span></span></span> values.
+<code>TestReactionSystem.test_solve_lambdas_and_nt()</code> tested this algorithm using the same condition to duplicate the final results:</p>
+<pre><code>estimated lambdas=[-2.99465699 -3.53831473 -3.53284552 -3.58288624 -1.32175584] in 9 iterations
+Newton solver converged in 3 iterations
+xi:
+{
+  &quot;A&quot;: 0.054371920681348475,
+  &quot;B&quot;: 0.031381252101277256,
+  &quot;C&quot;: 0.031554781288397886,
+  &quot;D&quot;: 0.030002460519717545,
+  &quot;I&quot;: 0.30878159806224936,
+  &quot;AA&quot;: 0.029749647635936863,
+  &quot;AB&quot;: 0.06487616844590846,
+  &quot;AC&quot;: 0.06483558483141763,
+  &quot;AD&quot;: 0.06519862916237511,
+  &quot;BB&quot;: 0.035369471293650055,
+  &quot;BC&quot;: 0.07069469148486564,
+  &quot;BD&quot;: 0.07109054365523017,
+  &quot;CC&quot;: 0.03532523403196577,
+  &quot;CD&quot;: 0.07104607260697371,
+  &quot;DD&quot;: 0.035721946161120004
+}
+nt=0.6477069813958342
+</code></pre>
+<p>This algorithm can be tested in more conditions in <code>TestReactionSystem.test_different_lambdas()</code>. At different conditions, the Newton solver is robust enough to converge within 3-4 iterations, which comes from the estimation method for $\lambda$s.</p>
+<p><img src="file:///c:\pyProject\DTU\Exercises\Yifan\dtu_thermo\report\plots\nt_vs_T.png" alt="total moles of true components vs temperature"></p>
+<p>This plot shows the moles of true components increases with temperature, which means higher temperature decompose the dimers to the monomers.</p>
+<p><img src="file:///c:\pyProject\DTU\Exercises\Yifan\dtu_thermo\report\plots\nt_vs_P.png" alt="total moles of true components vs pressure"></p>
+<p>On the other hand, higher pressure decrease the total moles of true components, indicating the promotion of dimerization according to the Le Chatelier's principle.</p>
+
+            <script async src="https://cdn.jsdelivr.net/npm/katex-copytex@latest/dist/katex-copytex.min.js"></script>
+            
+        </body>
+        </html>
