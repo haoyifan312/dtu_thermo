@@ -120,7 +120,8 @@ class SaturationPointSolver:
         self._max_iter = max_iter
         self._tol = tol
 
-    def calculate_saturation_condition(self, zi, t, p, free_var: str, damping_factor=1.0):
+    def calculate_saturation_condition(self, zi, t, p, free_var: str, damping_factor=1.0,
+                                       plot_convergence=False):
         if free_var == 'T':
             der_type = PropertyType.TEMPERATURE_DER
             free_var_index = 0
@@ -131,8 +132,12 @@ class SaturationPointSolver:
             raise SaturationPointException('Either temperature or pressure need to be freed '
                                            'for saturation point calculation')
         tp = [t, p]
+        tp_history = []
+        k_history = []
         for i in range(self._max_iter):
+            tp_history.append(tp.copy())
             ki = self._compute_ki(i, *tp, PropertyType.PROPERTY)
+            k_history.append(ki.copy())
             f = self._eqns.fun(zi, ki)
             if abs(f) < self._tol:
                 break
@@ -146,13 +151,38 @@ class SaturationPointSolver:
             if abs(newton_step) < self._tol * self._tol:
                 raise SaturationPointException(f'Newton step is reduced to {newton_step} and cannot converge')
 
+            newton_step = self._cap_newton_step(newton_step, tp, free_var_index)
             tp[free_var_index] += newton_step * damping_factor
         else:
             raise SaturationPointException(f'Newton solver cannot converge in {i} iterations')
+        if plot_convergence:
+            t_diffs = [abs(tp[0] - tp_history[-1][0]) for tp in tp_history]
+            k6_diffs = [abs(k[5] - k_history[-1][5]) for k in k_history]
+            plt.plot(t_diffs, label='T')
+            plt.plot(k6_diffs, label='K6')
+            plt.legend()
+            plt.yscale('log')
+            plt.savefig('sat_conv.png')
+
         return tp, ki, i
 
     def _compute_ki(self, i, t, p, property_type: PropertyType):
         raise NotImplementedError()
+
+    def _cap_newton_step(self, newton_step, tp, free_var_index):
+        caps = [
+            (0, 400),
+            (0, 10)
+        ]
+        cap = caps[free_var_index]
+        factor = 1.0
+        while True:
+            new_var = tp[free_var_index] + newton_step*factor
+            if cap[0] < new_var < cap[1]:
+                return newton_step*factor
+            factor *= 0.5
+            if factor < 1e-6:
+                return newton_step*factor
 
 
 class SaturationPointSolverWilson(SaturationPointSolver):
@@ -293,11 +323,11 @@ class SaturationPointBySuccessiveSubstitution:
             effective_newton_step = newton_step * factor
             tp_copy[free_var_index] += effective_newton_step
             lead_to_trivial = not was_trivial
-            if not was_trivial:
+            if tp_copy[free_var_index] > 0.0:
                 lead_to_trivial = self._utilities.leads_to_trivial_solution(self._stream, *tp_copy, zi,
                                                                             rr_result)
-            if tp_copy[free_var_index] > 0.0 and not lead_to_trivial:
-                return effective_newton_step
+                if not lead_to_trivial:
+                    return effective_newton_step
             if factor < 1e-5:
                 return effective_newton_step
             factor *= 0.5

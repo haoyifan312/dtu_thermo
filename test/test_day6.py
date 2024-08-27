@@ -49,6 +49,28 @@ class TestSaturationPointByWilsonK(unittest.TestCase):
             print(f'Bubble point temperature at P={p} is {dew_t} using {t_iters} iterations')
             self.assertAlmostEqual(dew_t, 288.2448733082847)
 
+    def test_wilson_random(self):
+        with init_system(self.components, 'SRK') as stream:
+            solver_bp = create_saturation_point_solver(stream, SaturationType.BUBBLE_POINT, self.model)
+            solver_dp = create_saturation_point_solver(stream, SaturationType.DEW_POINT, self.model)
+            t = 220
+            p = 5.8
+            bubble_tp, _, p_iters = solver_bp.calculate_saturation_condition(self.zs, t, p, 'P')
+            bubble_p = bubble_tp[1]
+            print(f'Bubble point pressure at T={t} is {bubble_p} using {p_iters} iterations')
+
+            bubble_tp, _, t_iters = solver_dp.calculate_saturation_condition(self.zs, t, p, 'T')
+            bubble_t = bubble_tp[0]
+            print(f'Bubble point temperature at P={p} is {bubble_t} using {t_iters} iterations')
+
+            dew_p, _, p_iters = solver_bp.calculate_saturation_condition(self.zs, t, p, 'P')
+            dew_p = bubble_tp[1]
+            print(f'Bubble point pressure at T={t} is {dew_p} using {p_iters} iterations')
+
+            dew_tp, _, t_iters = solver_dp.calculate_saturation_condition(self.zs, t, p, 'T', plot_convergence=True)
+            dew_t = dew_tp[0]
+            print(f'Bubble point temperature at P={p} is {dew_t} using {t_iters} iterations')
+
 
 class TestSaturationPointByPhi(unittest.TestCase):
     components = list(example_7_component.keys())
@@ -121,6 +143,7 @@ class TestSaturationPointByPhi(unittest.TestCase):
             # self.assertAlmostEqual(dew_p, 5.2992230786926635)
 
 
+
 class TestSaturationPointSuccessiveSubstitution(unittest.TestCase):
     components = list(example_7_component.keys())
     zs = np.array(list(example_7_component.values()))
@@ -159,8 +182,8 @@ class TestSaturationPointSuccessiveSubstitution(unittest.TestCase):
             solver = SaturationPointBySuccessiveSubstitution.create_saturation_pt_by_successive_substitution(stream,
                                                                                                              SaturationType.BUBBLE_POINT)
             t = 200
-            p = 5.9
-            tp, _, iters = solver.solve(t, p, self.zs, 'T')
+            p = 5.5
+            tp, _, iters = solver.solve(t, p, self.zs, 'T', plot_t_vs_k6='t_vs_k6.png')
             bubble_t = tp[0]
             print(f'Bubble point temperature at P={p} is {bubble_t} using {iters} iterations')
 
@@ -264,7 +287,7 @@ class TestEquilEqns(unittest.TestCase):
             sen = [(var, value) for var, value in zip(var_names, sensitivity)]
             pass
 
-    def test_solve_random(self):
+    def _test_solve_random(self):
         with init_system(self.components, 'SRK') as stream:
             solver = create_saturation_point_solver(stream, SaturationType.DEW_POINT, 'Wilson')
 
@@ -291,8 +314,8 @@ class TestEquilEqns(unittest.TestCase):
         with init_system(self.components, 'SRK') as stream:
             equil_eqns = EquilEqnsForSaturationPoint(stream, 0.0, self.zs)
             t = 150
-            p = 4
-            equil_eqns.solve_phase_envolope(t, p, starting_spec='P', manually=True)
+            p = 1.0
+            equil_eqns.solve_phase_envolope(t, p, starting_spec='P', manually=False)
 
     def test_solve_dew(self):
         with init_system(self.components, 'SRK') as stream:

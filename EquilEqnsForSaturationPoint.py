@@ -26,6 +26,8 @@ class EquilEqnsForSaturationPoint:
         self._jac = np.zeros((self.system_size, self.system_size))
         self._max_iter = max_iter
         self._tol = tol
+        self.tp_history_bp = []
+        self.tp_history_dp = []
 
     @property
     def independent_vars(self):
@@ -247,47 +249,51 @@ class EquilEqnsForSaturationPoint:
         self._setup_first_pt_initial_guess_from_successive_substitution(t, p, starting_spec)
         self._set_spec_for_first_point(p, starting_spec, t)
 
+        self.trace_phase_envolope(manually)
+
+        self.beta = 1.0-self.beta
+        self._setup_first_pt_initial_guess_from_successive_substitution(t+100, p, starting_spec)
+        self._set_spec_for_first_point(p, starting_spec, t+100)
+        self.trace_phase_envolope(manually)
+
+        self._plot_tp()
+
+    def trace_phase_envolope(self, manually):
         _ = self.solve()
         sensitivity = self.print_var_and_sensitivity()
-
-        t_history = []
-        p_history = []
         value_history = []
-        last_succeeded = True
         while True:
-            self._plot_tp(p_history, t_history)
+            self._log_current_tp()
             value_history.append(self._independent_var_values.copy())
             if manually:
-                input_text = input()
-                self._trace_input(input_text)
-                if input_text == 'reset':
-                    self._reset_to_old_var_values(value_history[-2])
-                else:
-                    var_name, value = input_text.split((' '))
-                    value = float(value)
-                    try:
-                        self.set_spec(var_name, value)
-                    except KeyError as e:
-                        print(f'{var_name} is not supported')
-                        pass
-                    self._update_x_new_from_senstivity(var_name, value, sensitivity)
+                value, var_name = self._set_spec_from_input(value_history)
+            else:
+                value, var_name = self._set_next_step_for_envelope(sensitivity)
+            self._update_x_new_from_senstivity(var_name, value, sensitivity)
             try:
                 self.solve(damping_factor=0.5, accept_loose_solution=False, use_init=True)
-                last_succeeded = True
                 print(f'liquid phase property phase: {self._ln_phi_l_props.phase.name}')
                 print(f'vapor phase property phase: {self._ln_phi_v_props.phase.name}')
-                if self._ln_phi_l_props.phase == self._ln_phi_v_props.phase:
-                    self.beta = 1.0-self.beta
-                    print(f'flip phase envelope to beta={self.beta}')
-                    last_succeeded = False
             except EquilEqnsForSaturationPointException as e:
                 print(e)
-                self.beta = 1.0 - self.beta
-                last_succeeded = False
-                print(f'flip phase envelope to beta={self.beta}')
                 self._reset_to_old_var_values(value_history[-1])
-
+                break
             sensitivity = self.print_var_and_sensitivity()
+
+    def _set_spec_from_input(self, value_history):
+        input_text = input()
+        self._trace_input(input_text)
+        if input_text == 'reset':
+            self._reset_to_old_var_values(value_history[-2])
+        else:
+            var_name, value = input_text.split((' '))
+            value = float(value)
+            try:
+                self.set_spec(var_name, value)
+            except KeyError as e:
+                print(f'{var_name} is not supported')
+                pass
+        return value, var_name
 
     def _reset_to_old_var_values(self, old_values):
         print('reset to previous point')
@@ -337,10 +343,10 @@ class EquilEqnsForSaturationPoint:
                                                                                                          max_iter=max_iter)
         return solver
 
-    def _plot_tp(self, p_history, t_history):
-        t_history.append(self.t)
-        p_history.append(self.p)
-        plt.plot(t_history, p_history)
+    def _plot_tp(self):
+        plt.plot([tp[0] for tp in self.tp_history_bp], [tp[1] for tp in self.tp_history_bp], label='Bubble point')
+        plt.plot([tp[0] for tp in self.tp_history_dp], [tp[1] for tp in self.tp_history_dp], label='Dew point')
+        plt.legend()
         plt.ylabel('P (MPa)')
         plt.xlabel('T (K)')
         plt.savefig('phase_envelope.png')
@@ -419,4 +425,21 @@ class EquilEqnsForSaturationPoint:
 
         self._independent_var_values = previous_x
         return factor*effect_del_x
+
+    def _set_next_step_for_envelope(self, sensitivity):
+        current_is_t = self.independent_var_map['T'] == self._spec[0]
+        if current_is_t or sensitivity[-2] < -50:
+            new_t = self.t - 0.1
+            self.set_spec('T', new_t)
+            return new_t, 'T'
+        else:
+            new_p = self.p+0.01
+            self.set_spec('P', new_p)
+            return new_p, 'P'
+
+    def _log_current_tp(self):
+        if self.beta == 0.0:
+            self.tp_history_bp.append((self.t, self.p))
+        elif self.beta == 1.0:
+            self.tp_history_dp.append((self.t, self.p))
 
