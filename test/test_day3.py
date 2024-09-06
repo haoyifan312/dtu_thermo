@@ -76,9 +76,18 @@ class TestSuccessiveSubstitution(unittest.TestCase):
         p = self.ps[i]
         self._test_case_for_t_p(t, p, self.betas_gold[i])
 
-    def _test_case_for_t_p(self, t, p, beta_gold=None):
+    def test_random(self):
+        comp = ['C1', 'C7']
+        zs = [0.6126, 0.3875]
+        t = 310.88
+        p = 5.516133
+        self._test_case_for_t_p(t, p, zs, comp)
+
+    def _test_case_for_t_p(self, t, p, beta_gold=None, zs=None, components=None):
         show_plot = False
-        with init_system(self.components, 'SRK') as stream:
+        zs = zs if zs is not None else self.zs
+        components = components if components is not None else self.components
+        with init_system(components, 'SRK') as stream:
             ss = TwoPhaseFlash(stream)
             acc_by_cycle = SSAccelerationCriteriaByCycle(5)
             ss_acc_by_cycle = TwoPhaseFlash(stream, acceleration=SSAccelerationDEM(acc_by_cycle))
@@ -89,7 +98,7 @@ class TestSuccessiveSubstitution(unittest.TestCase):
                                                     rr_fast=RachfordRiceBase.create_solver(stream.inflow_size,
                                                                                                      RachfordRiceSolverOption.SLOPPY),
                                                     acceleration=SSAccelerationDEM(acc_by_change))
-            flash_input = FlashInput(t, p, self.zs)
+            flash_input = FlashInput(t, p, zs)
             iters, result, rr_iters = self.compute_successive_substitution_allow_max_iter_reached(flash_input,
                                                                                                           show_plot,
                                                                                                           ss)
