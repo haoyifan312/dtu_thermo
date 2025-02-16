@@ -19,7 +19,7 @@ class ComponentType(IntEnum):
 class Component:
     name: str
     type: ComponentType
-    material_balance_group_and_stoi: List
+    elements_and_stoi: List
 
 
 class ReactionSystem:
@@ -118,8 +118,8 @@ class ReactionSystem:
             for j in range(i, monomer_size):
                 mo_i = monomers[i]
                 mo_j = monomers[j]
-                mo_i_mbg = mo_i.material_balance_group_and_stoi[0][0]
-                mo_j_mbg = mo_j.material_balance_group_and_stoi[0][0]
+                mo_i_mbg = mo_i.elements_and_stoi[0][0]
+                mo_j_mbg = mo_j.elements_and_stoi[0][0]
                 dimer_name = mo_i.name + mo_j.name
                 if i == j:
                     mbgs = [(mo_i_mbg, 2)]
@@ -139,7 +139,7 @@ class ReactionSystem:
         ret = np.zeros((len(self._mbg), len(self._true_components)), dtype=np.uint)
         for component in self._true_components:
             col_index = component_map[component.name]
-            for mbg, stoi in component.material_balance_group_and_stoi:
+            for mbg, stoi in component.elements_and_stoi:
                 row_index = mbg_map[mbg]
                 ret[row_index, col_index] = stoi
         return ret
@@ -147,7 +147,7 @@ class ReactionSystem:
     def _extract_material_group(self):
         ret = set()
         for component in self.app_components:
-            for mbg_name, _ in component.material_balance_group_and_stoi:
+            for mbg_name, _ in component.elements_and_stoi:
                 ret.add(mbg_name)
         return sorted(list(ret))
 
