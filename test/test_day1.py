@@ -7,7 +7,7 @@ from thermclc_interface import *
 
 class TestThermoFunctions(unittest.TestCase):
     def test_stream(self):
-        with init_system(['C1', 'C3'], 'SRK'):
+        with init_system(['C1', 'C3'], 'SRK') as stream:
             self.assertTrue(True)
 
     def test_thermclc(self):
