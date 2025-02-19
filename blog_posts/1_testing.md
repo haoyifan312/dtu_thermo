@@ -32,7 +32,8 @@ The first step is to test the constructor of my `ReactionSystem` class, which ta
 def _build_example_reaction_system(self):
     monomers = [Component(name, ComponentType.MONOMER, [(name, 1)])
                 for name in ('A', 'B', 'C', 'D')]
-    all_components = [*monomers, Component('I', ComponentType.INERT, [('I', 1)])]
+    all_components = [*monomers, 
+                      Component('I', ComponentType.INERT, [('I', 1)])]
     return ReactionSystem(all_components)
 ```
 
@@ -49,17 +50,18 @@ def test_build_true_component(self):
     true_components = [*monomers, *inters, *dimers]
 
     # Verify that the class generates the expected species list
-    self.assertTrue(sorted(true_components), sorted(system.true_component_names))   
+    self.assertTrue(sorted(true_components), 
+                    sorted(system.true_component_names))   
     self.assertEqual(len(system.true_component_names), 15)
 
 
     # Verify that the element-stoichiometry matrix is correctly constructed
-    expected_element_stoi_matrix = np.array([[1, 0, 0, 0, 0, 2, 1, 1, 1, 0, 0, 0, 0, 0, 0],
-                                                [0, 1, 0, 0, 0, 0, 1, 0, 0, 2, 1, 1, 0, 0, 0],
-                                                [0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 1, 0, 2, 1, 0],
-                                                [0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 1, 0, 1, 2],
-                                                [0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]])                                                
-    self.assertTrue(np.allclose(system._mbg_by_component_matrix, expected_element_stoi_matrix))
+    expected = np.array([[1, 0, 0, 0, 0, 2, 1, 1, 1, 0, 0, 0, 0, 0, 0],
+                        [0, 1, 0, 0, 0, 0, 1, 0, 0, 2, 1, 1, 0, 0, 0],
+                        [0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 1, 0, 2, 1, 0],
+                        [0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 1, 0, 1, 2],
+                        [0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]])                                                
+    self.assertTrue(np.allclose(system._mbg_by_component_matrix, expected))
 ```
 This test verifies that the `ReactionSystem` class correctly generates 15 species, including monomers, dimers, and inert species, from a manually defined list. Additionally, it checks that each species contains the correct elemental composition.
 
@@ -116,24 +118,85 @@ def test_pressure_derivative(self):
     with init_system(example_7_component.keys(), 'SRK') as stream:
         # calculate at given condition and component composition
         flash_input = FlashInput(t, p_mpa, inflow_moles)
-        props = stream.calc_properties(flash_input, desired_phase=PhaseEnum.LIQ)
+        props = stream.calc_properties(flash_input, 
+        desired_phase=PhaseEnum.LIQ)
 
         # numerically evaluate the pressure derivative
         pert = 1e-6
         new_p = p_mpa + pert
-        new_prop = stream.calc_properties(FlashInput(t, new_p, inflow_moles), desired_phase=PhaseEnum.LIQ)
+        new_prop = stream.calc_properties(FlashInput(t, new_p, inflow_moles), 
+                                          desired_phase=PhaseEnum.LIQ)
         numerical_der = (new_prop.phi - props.phi)/pert
 
-        # Compare the numerical derivative with the analytical derivative from the library
+        # Compare the numerical derivative with the analytical derivative
         analytical_der = props.dphi_dp
-        print(f'numerical der={numerical_der}; analytical der={analytical_der}')
         self.assertTrue(np.allclose(numerical_der, analytical_der))
 
 ```
 
 By using a wrapper and implementing learning tests, we not only ensure that our code interfaces with external libraries correctly but also guard against potential future changes, all while improving code clarity and maintainability.
 
+A key principle in testing is that all tests should be self-contained, including the data they rely on. The model or library should not depend on external parameters or databases, as this can lead to false alarms when external data changes. For example, if you're developing a class to monitor the stock market, your tests should not rely on real-time stock data. Instead, a mock database should be used to ensure consistency and reliability in testing.
+
 
 ## Integration Test
 
+Like unit tests, integration tests verify functionality, but at a higher level—examining how multiple software components interact when combined. In the following example, which [tests the stability analysis algorithm](https://github.com/haoyifan312/dtu_thermo/blob/main/test/test_day4.py), several classes work together to perform the calculation:
+
+- `init_system`: Creates a thermodynamic calculation object from a component list (as described earlier).
+- `SSAccelerationCriteriaByChange`: Defines the acceleration criteria method for successive substitution (SS).
+- `SSAccelerationDEM`: Implements the dominant-eigenvalue method to accelerate SS.
+- `StabilityAnalysis`: Implements the stability analysis algorithm.
+
+```python
+def test_case_1(self):
+    # Retrieve input for case 1
+    i = 1
+    t = self.ts[i]
+    p = self.ps[i]
+    flash_input = FlashInput(t, p, self.zs)
+
+    # Initialize thermodynamic system using SRK
+    with init_system(self.components, 'SRK') as stream:
+        # Create acceleration and stability analysis objects
+        acc_by_change = SSAccelerationCriteriaByChange(0.01)
+        acc = SSAccelerationDEM(acc_by_change)
+        sa = StabilityAnalysis(stream, acceleration=acc)
+
+        # use thermodynamic object to compute initial guess
+        ks = stream.all_wilson_ks(t, p)
+        ln_phi_z = stream.calc_properties(flash_input, PhaseEnum.STABLE).phi
+        vap_wi_guess = estimate_light_phase_from_wilson_ks(self.zs, ks)
+
+        # Perform stability analysis using vapor-phase initial guess
+        sa_vap_result, ss_iters_vap = sa.compute(flash_input, vap_wi_guess)
+        self.assertAlmostEqual(sa_vap_result.distance, 
+                               self.vap_distance_gold[i], 3)
+
+        # Test trivial solution
+        if sa_vap_result.category == SAResultType.TRIVIAL:
+            self.assertTrue(np.allclose(sa_vap_result.wi, self.zs))
+
+        # Perform stability analysis using liquid-phase initial guess
+        liq_wi_guess = estimate_heavy_phase_from_wilson_ks(self.zs, ks)
+        sa_liq_result, ss_iters_liq = sa.compute(flash_input, liq_wi_guess)
+        self.assertAlmostEqual(sa_liq_result.distance, 
+                               self.liq_distance_gold[i], 3)
+        
+        # Test trivial solution
+        if sa_liq_result.category == SAResultType.TRIVIAL:
+            self.assertTrue(np.allclose(sa_liq_result.wi, self.zs))
+```
+
+This test ensures that multiple components interact correctly, validating the stability analysis results for both vapor and liquid initial guesses. By structuring tests this way, we can detect integration issues early and verify that changes to individual components do not break overall system functionality.
+
+
 ## Conclusion
+
+In this post, I illustrated three common testing approaches used by software developers. However, testing extends beyond these examples - methods like acceptance testing, property-based testing, and performance testing also play crucial roles in ensuring software functionality, reliability, and efficiency.
+
+Tests are only valuable if we run them consistently. A crucial next step is automating test execution whenever code changes, a practice known as continuous integration (CI). This is especially beneficial in collaborative development, where different contributors may not always know which tests to run. Implementing CI helps maintain software quality by ensuring that tests are executed automatically and reliably.
+
+In a future post, I’ll discuss how to configure continuous integration to automate both building and testing your software from source code.
+
+> "Test early, test often, test automatically" - Tip 90 from *The Pragmatic Programmer*
