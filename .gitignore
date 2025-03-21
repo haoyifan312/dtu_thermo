@@ -1,3 +1,7 @@
 /venvDTUCourse/
 /.idea/
 __pycache__/
+**/.vs
+**/x64
+*.u2d
+*.bak
